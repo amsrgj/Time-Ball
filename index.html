@@ -509,10 +509,15 @@
   const VH = 1600;
   const BALL_R = 18;                  // virtual units
   const GRAV = 1800;                  // vu / s^2
-  const RESTITUTION = 0.35;
-  const FRICTION = 0.985;             // tangential friction on bounce
-  const AIR = 0.999;                  // air drag per physics step
-  const MAX_V = 3000;                 // vu / s  (MAX_V * STEP < BALL_R prevents tunneling)
+  // Per-surface bounce coefficients. Walls feel a little grippy so the ball
+  // can settle; drawn lines feel slippery + lively so player ink reads as
+  // an arcade rail rather than a sticky stop.
+  const WALL_FRICTION   = 0.995;      // tangential retention per contact
+  const WALL_RESTITUTION = 0.40;      // normal energy retention on bounce
+  const STROKE_FRICTION   = 0.999;    // drawn lines: near-frictionless slide
+  const STROKE_RESTITUTION = 0.55;    // drawn lines: bouncier
+  const AIR = 0.9995;                 // air drag per physics step (less = more momentum)
+  const MAX_V = 3500;                 // vu / s  (MAX_V * STEP < BALL_R prevents tunneling: 3500/240 ≈ 14.6 < 18)
   const OFFSCREEN_MARGIN = 100;       // vu past viewport edge before "Lost!"
   const STEP = 1 / 240;               // physics timestep (seconds)
   const INK_BUDGET_BASE = (VW + VH) * 0.9;   // vu of total stroke length at L.ink = 1.0
@@ -1324,16 +1329,21 @@
     if (sp > MAX_V) { ball.vx = ball.vx / sp * MAX_V; ball.vy = ball.vy / sp * MAX_V; }
   }
   function* segments() {
+    // Each segment carries the friction (f) and restitution (r) for its
+    // source surface, so resolveCollisions can apply per-surface response
+    // without branching on type.
+    const wf = WALL_FRICTION, wr = WALL_RESTITUTION;
     for (const w of walls) {
-      yield { x1: w.x, y1: w.y, x2: w.x + w.w, y2: w.y };
-      yield { x1: w.x + w.w, y1: w.y, x2: w.x + w.w, y2: w.y + w.h };
-      yield { x1: w.x, y1: w.y + w.h, x2: w.x + w.w, y2: w.y + w.h };
-      yield { x1: w.x, y1: w.y, x2: w.x, y2: w.y + w.h };
+      yield { x1: w.x,         y1: w.y,         x2: w.x + w.w, y2: w.y,         f: wf, r: wr };
+      yield { x1: w.x + w.w,   y1: w.y,         x2: w.x + w.w, y2: w.y + w.h,   f: wf, r: wr };
+      yield { x1: w.x,         y1: w.y + w.h,   x2: w.x + w.w, y2: w.y + w.h,   f: wf, r: wr };
+      yield { x1: w.x,         y1: w.y,         x2: w.x,       y2: w.y + w.h,   f: wf, r: wr };
     }
+    const sf = STROKE_FRICTION, sr = STROKE_RESTITUTION;
     for (const s of strokes) {
       const pts = s.points;
       for (let i = 1; i < pts.length; i++) {
-        yield { x1: pts[i-1].x, y1: pts[i-1].y, x2: pts[i].x, y2: pts[i].y };
+        yield { x1: pts[i-1].x, y1: pts[i-1].y, x2: pts[i].x, y2: pts[i].y, f: sf, r: sr };
       }
     }
   }
@@ -1360,8 +1370,8 @@
           if (vn < 0) {
             const tvx = ball.vx - vn * nx;
             const tvy = ball.vy - vn * ny;
-            ball.vx = tvx * FRICTION - vn * nx * RESTITUTION;
-            ball.vy = tvy * FRICTION - vn * ny * RESTITUTION;
+            ball.vx = tvx * s.f - vn * nx * s.r;
+            ball.vy = tvy * s.f - vn * ny * s.r;
           }
           any = true;
         } else if (dist === 0) {
@@ -1370,6 +1380,10 @@
       }
       if (!any) break;
     }
+    // Re-clamp after collisions: under stacked contacts the response can
+    // amplify magnitude across iterations; an explicit cap keeps MAX_V the
+    // hard ceiling regardless of geometry density.
+    clampV();
   }
   function checkOffscreen() {
     return ball.x + ball.r < -OFFSCREEN_MARGIN ||

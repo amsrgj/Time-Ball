@@ -62,5 +62,5 @@ The whole game lives inside one IIFE in `<script>` at the bottom of `index.html`
 - Adding a build step (defeats the single-file model).
 - Renaming storage keys without bumping the `.vN` suffix (silently wipes records).
 - Removing `closestOnSeg` from the IIFE scope — both the game and the menu demo use it.
-- Tunneling: the velocity cap is `MAX_V` vu/s (currently 3000) and the ball radius is `BALL_R` (currently 18). Keep `MAX_V * STEP < BALL_R` to prevent the ball from teleporting through thin lines (3000 * 1/240 = 12.5 < 18 ✓).
+- Tunneling: the velocity cap is `MAX_V` vu/s (currently 3500) and the ball radius is `BALL_R` (currently 18). Keep `MAX_V * STEP < BALL_R` to prevent the ball from teleporting through thin lines (3500 * 1/240 ≈ 14.6 < 18 ✓). `clampV()` runs at the start of every step and again after collision resolution so the cap holds regardless of contact density.
 - Drawing without applying the viewport transform — anything rendered with raw `(0,0) → (screenW, screenH)` will sit outside the virtual world and won't line up with physics.
