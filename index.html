@@ -497,113 +497,135 @@
 <script>
 (() => {
   // ============================================================
+  // Virtual coordinate system
+  // ============================================================
+  // The game runs in a fixed virtual world VW x VH. All gameplay state —
+  // walls, spawn, goal, ball, ink, gravity, friction, sim time — is
+  // expressed in virtual units. The renderer maps virtual to screen via a
+  // single fit-and-letterbox transform; physics integrates with a
+  // deterministic fixed timestep accumulator, so behavior is identical
+  // regardless of FPS or screen size.
+  const VW = 1000;
+  const VH = 1600;
+  const BALL_R = 18;                  // virtual units
+  const GRAV = 1800;                  // vu / s^2
+  const RESTITUTION = 0.35;
+  const FRICTION = 0.985;             // tangential friction on bounce
+  const AIR = 0.999;                  // air drag per physics step
+  const MAX_V = 3000;                 // vu / s  (MAX_V * STEP < BALL_R prevents tunneling)
+  const OFFSCREEN_MARGIN = 100;       // vu past viewport edge before "Lost!"
+  const STEP = 1 / 240;               // physics timestep (seconds)
+  const INK_BUDGET_BASE = (VW + VH) * 0.9;   // vu of total stroke length at L.ink = 1.0
+  const SAMPLE_INTERVAL = 30;         // ms between ghost samples
+
+  // ============================================================
   // Levels
   // ============================================================
-  // Each level:
-  //   spawn:  (W,H) => {x,y}
-  //   goal:   (W,H) => {x,y,w,h}      goal y is between 0.5H and 0.95H
-  //   walls:  (W,H) => [{x,y,w,h}, ...]
-  //   ink:    multiplier on ink budget
-  //   medals: { gold, silver, bronze } in ms (lower = better)
+  // Each level (all coordinates in virtual units):
+  //   spawn:  {x, y}
+  //   goal:   {x, y, w, h}
+  //   walls:  [{x, y, w, h}, ...]
+  //   ink:    multiplier on INK_BUDGET_BASE
+  //   medals: { platinum, gold, silver, bronze } in ms (lower = better)
   // Medal targets — tightened toward what a skilled run can hit.
   // platinum = top ~0.5% / world-class · gold = top ~2.5% · silver = top ~10% · bronze = top ~25%
   // (We can't measure real percentiles without a backend; these are calibrated guesses.)
   const LEVELS = [
     // 1 — gentle intro
-    { spawn:(W,H)=>({x:W*0.18,y:H*0.18}), goal:(W,H)=>({x:W*0.70,y:H*0.85,w:W*0.20,h:18}),
-      walls:(W,H)=>[{x:W*0.32,y:H*0.45,w:W*0.26,h:14}], ink:1.0,
+    { spawn:{x:VW*0.18,y:VH*0.18}, goal:{x:VW*0.70,y:VH*0.85,w:VW*0.20,h:18},
+      walls:[{x:VW*0.32,y:VH*0.45,w:VW*0.26,h:14}], ink:1.0,
       medals:{platinum:1200,gold:1700,silver:2400,bronze:3500} },
     // 2 — cross-screen left, mid-height goal
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.12}), goal:(W,H)=>({x:W*0.04,y:H*0.55,w:W*0.20,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.40,w:W*0.55,h:14}], ink:1.0,
+    { spawn:{x:VW*0.85,y:VH*0.12}, goal:{x:VW*0.04,y:VH*0.55,w:VW*0.20,h:18},
+      walls:[{x:VW*0.30,y:VH*0.40,w:VW*0.55,h:14}], ink:1.0,
       medals:{platinum:1800,gold:2400,silver:3300,bronze:5000} },
     // 3 — narrow funnel
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.08}), goal:(W,H)=>({x:W*0.42,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.05,y:H*0.50,w:W*0.35,h:14},{x:W*0.60,y:H*0.50,w:W*0.35,h:14},{x:W*0.30,y:H*0.74,w:W*0.40,h:14}], ink:0.85,
+    { spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[{x:VW*0.05,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.60,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.30,y:VH*0.74,w:VW*0.40,h:14}], ink:0.85,
       medals:{platinum:1600,gold:2200,silver:3000,bronze:4500} },
     // 4 — vertical column with gap above, goal mid-right
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.18}), goal:(W,H)=>({x:W*0.78,y:H*0.50,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.46,y:H*0.42,w:14,h:H*0.45},{x:W*0.30,y:H*0.62,w:W*0.20,h:14}], ink:0.95,
+    { spawn:{x:VW*0.10,y:VH*0.18}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
+      walls:[{x:VW*0.46,y:VH*0.42,w:14,h:VH*0.45},{x:VW*0.30,y:VH*0.62,w:VW*0.20,h:14}], ink:0.95,
       medals:{platinum:1700,gold:2400,silver:3400,bronze:5000} },
     // 5 — staircase
-    { spawn:(W,H)=>({x:W*0.92,y:H*0.10}), goal:(W,H)=>({x:W*0.06,y:H*0.86,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.55,y:H*0.32,w:W*0.30,h:14},{x:W*0.35,y:H*0.50,w:W*0.30,h:14},{x:W*0.15,y:H*0.68,w:W*0.30,h:14}], ink:0.9,
+    { spawn:{x:VW*0.92,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.86,w:VW*0.18,h:18},
+      walls:[{x:VW*0.55,y:VH*0.32,w:VW*0.30,h:14},{x:VW*0.35,y:VH*0.50,w:VW*0.30,h:14},{x:VW*0.15,y:VH*0.68,w:VW*0.30,h:14}], ink:0.9,
       medals:{platinum:2200,gold:3000,silver:4200,bronze:6500} },
     // 6 — Π shape. Platinum 1.5s · Bronze 3.14s (π easter egg)
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.08}), goal:(W,H)=>({x:W*0.06,y:H*0.62,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.30,w:14,h:H*0.30},{x:W*0.65,y:H*0.30,w:14,h:H*0.30},{x:W*0.20,y:H*0.30,w:W*0.60,h:14}], ink:0.95,
+    { spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.06,y:VH*0.62,w:VW*0.18,h:18},
+      walls:[{x:VW*0.30,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.20,y:VH*0.30,w:VW*0.60,h:14}], ink:0.95,
       medals:{platinum:1500,gold:2000,silver:2600,bronze:3140} },
     // 7 — two stepped shelves, half-screen goal
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.78,y:H*0.50,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.20,y:H*0.30,w:W*0.55,h:14},{x:W*0.05,y:H*0.55,w:W*0.55,h:14}], ink:0.85,
+    { spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
+      walls:[{x:VW*0.20,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.05,y:VH*0.55,w:VW*0.55,h:14}], ink:0.85,
       medals:{platinum:1900,gold:2600,silver:3700,bronze:5500} },
     // 8 — long traverse, dense scatter
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.04,y:H*0.92,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.40,y:H*0.22,w:W*0.45,h:14},{x:W*0.15,y:H*0.40,w:W*0.45,h:14},{x:W*0.55,y:H*0.58,w:W*0.30,h:14},{x:W*0.25,y:H*0.74,w:W*0.40,h:14},{x:W*0.65,y:H*0.30,w:14,h:H*0.18}], ink:0.9,
+    { spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.04,y:VH*0.92,w:VW*0.18,h:18},
+      walls:[{x:VW*0.40,y:VH*0.22,w:VW*0.45,h:14},{x:VW*0.15,y:VH*0.40,w:VW*0.45,h:14},{x:VW*0.55,y:VH*0.58,w:VW*0.30,h:14},{x:VW*0.25,y:VH*0.74,w:VW*0.40,h:14},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.18}], ink:0.9,
       medals:{platinum:2800,gold:3700,silver:5200,bronze:7500} },
     // 9 — three staggered shelves
-    { spawn:(W,H)=>({x:W*0.08,y:H*0.10}), goal:(W,H)=>({x:W*0.78,y:H*0.88,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.00,y:H*0.30,w:W*0.55,h:14},{x:W*0.45,y:H*0.50,w:W*0.55,h:14},{x:W*0.00,y:H*0.70,w:W*0.55,h:14}], ink:0.95,
+    { spawn:{x:VW*0.08,y:VH*0.10}, goal:{x:VW*0.78,y:VH*0.88,w:VW*0.18,h:18},
+      walls:[{x:VW*0.00,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.45,y:VH*0.50,w:VW*0.55,h:14},{x:VW*0.00,y:VH*0.70,w:VW*0.55,h:14}], ink:0.95,
       medals:{platinum:2500,gold:3300,silver:4500,bronze:6500} },
     // 10 — narrow goal between two pillars
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.43,y:H*0.85,w:W*0.14,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.55,w:14,h:H*0.30},{x:W*0.68,y:H*0.55,w:14,h:H*0.30},{x:W*0.10,y:H*0.35,w:W*0.30,h:14},{x:W*0.60,y:H*0.35,w:W*0.30,h:14}], ink:0.85,
+    { spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.43,y:VH*0.85,w:VW*0.14,h:18},
+      walls:[{x:VW*0.30,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.68,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.10,y:VH*0.35,w:VW*0.30,h:14},{x:VW*0.60,y:VH*0.35,w:VW*0.30,h:14}], ink:0.85,
       medals:{platinum:2200,gold:3000,silver:4200,bronze:6000} },
     // 11 — overhang ceiling, goal lower-left
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.10}), goal:(W,H)=>({x:W*0.06,y:H*0.78,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.20,y:H*0.28,w:W*0.65,h:14},{x:W*0.20,y:H*0.28,w:14,h:H*0.20},{x:W*0.30,y:H*0.55,w:W*0.40,h:14}], ink:0.95,
+    { spawn:{x:VW*0.85,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.78,w:VW*0.18,h:18},
+      walls:[{x:VW*0.20,y:VH*0.28,w:VW*0.65,h:14},{x:VW*0.20,y:VH*0.28,w:14,h:VH*0.20},{x:VW*0.30,y:VH*0.55,w:VW*0.40,h:14}], ink:0.95,
       medals:{platinum:2600,gold:3500,silver:4800,bronze:7000} },
     // 12 — half-screen goal on the right, low ink
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.08}), goal:(W,H)=>({x:W*0.80,y:H*0.55,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.25,y:H*0.30,w:W*0.50,h:14},{x:W*0.55,y:H*0.30,w:14,h:H*0.20}], ink:0.7,
+    { spawn:{x:VW*0.10,y:VH*0.08}, goal:{x:VW*0.80,y:VH*0.55,w:VW*0.16,h:18},
+      walls:[{x:VW*0.25,y:VH*0.30,w:VW*0.50,h:14},{x:VW*0.55,y:VH*0.30,w:14,h:VH*0.20}], ink:0.7,
       medals:{platinum:2300,gold:3100,silver:4300,bronze:6200} },
     // 13 — scatter maze
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.42,y:H*0.93,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.10,y:H*0.20,w:W*0.25,h:14},{x:W*0.65,y:H*0.20,w:W*0.25,h:14},{x:W*0.35,y:H*0.36,w:W*0.30,h:14},{x:W*0.05,y:H*0.52,w:W*0.30,h:14},{x:W*0.65,y:H*0.52,w:W*0.30,h:14},{x:W*0.30,y:H*0.70,w:14,h:H*0.18},{x:W*0.66,y:H*0.70,w:14,h:H*0.18}], ink:1.1,
+    { spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.93,w:VW*0.16,h:18},
+      walls:[{x:VW*0.10,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.65,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.35,y:VH*0.36,w:VW*0.30,h:14},{x:VW*0.05,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.65,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.30,y:VH*0.70,w:14,h:VH*0.18},{x:VW*0.66,y:VH*0.70,w:14,h:VH*0.18}], ink:1.1,
       medals:{platinum:3500,gold:4700,silver:6500,bronze:9500} },
     // 14 — zigzag (4 shelves)
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.78,y:H*0.90,w:W*0.18,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.05,y:H*0.22,w:W*0.45,h:14},
-        {x:W*0.50,y:H*0.40,w:W*0.45,h:14},
-        {x:W*0.05,y:H*0.58,w:W*0.45,h:14},
-        {x:W*0.50,y:H*0.76,w:W*0.30,h:14},
+    { spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.90,w:VW*0.18,h:18},
+      walls:[
+        {x:VW*0.05,y:VH*0.22,w:VW*0.45,h:14},
+        {x:VW*0.50,y:VH*0.40,w:VW*0.45,h:14},
+        {x:VW*0.05,y:VH*0.58,w:VW*0.45,h:14},
+        {x:VW*0.50,y:VH*0.76,w:VW*0.30,h:14},
       ], ink:0.95, medals:{platinum:1500,gold:2100,silver:3000,bronze:4500} },
     // 15 — slot, deep goal
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.07}), goal:(W,H)=>({x:W*0.45,y:H*0.93,w:W*0.10,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.30,y:H*0.40,w:W*0.40,h:14},
-        {x:W*0.30,y:H*0.40,w:14,h:H*0.50},
-        {x:W*0.70,y:H*0.40,w:14,h:H*0.50},
+    { spawn:{x:VW*0.85,y:VH*0.07}, goal:{x:VW*0.45,y:VH*0.93,w:VW*0.10,h:18},
+      walls:[
+        {x:VW*0.30,y:VH*0.40,w:VW*0.40,h:14},
+        {x:VW*0.30,y:VH*0.40,w:14,h:VH*0.50},
+        {x:VW*0.70,y:VH*0.40,w:14,h:VH*0.50},
       ], ink:0.85, medals:{platinum:2000,gold:2700,silver:3800,bronze:5500} },
     // 16 — pillars + overhang
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.06}), goal:(W,H)=>({x:W*0.80,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.25,y:H*0.20,w:W*0.50,h:14},
-        {x:W*0.25,y:H*0.20,w:14,h:H*0.20},
-        {x:W*0.40,y:H*0.50,w:14,h:H*0.30},
-        {x:W*0.65,y:H*0.50,w:14,h:H*0.30},
-        {x:W*0.40,y:H*0.78,w:W*0.40,h:14},
+    { spawn:{x:VW*0.10,y:VH*0.06}, goal:{x:VW*0.80,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.25,y:VH*0.20,w:VW*0.50,h:14},
+        {x:VW*0.25,y:VH*0.20,w:14,h:VH*0.20},
+        {x:VW*0.40,y:VH*0.50,w:14,h:VH*0.30},
+        {x:VW*0.65,y:VH*0.50,w:14,h:VH*0.30},
+        {x:VW*0.40,y:VH*0.78,w:VW*0.40,h:14},
       ], ink:1.0, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
     // 17 — long horizontal traverse, half-screen goal
-    { spawn:(W,H)=>({x:W*0.05,y:H*0.06}), goal:(W,H)=>({x:W*0.82,y:H*0.50,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.10,y:H*0.30,w:W*0.65,h:14},
-        {x:W*0.30,y:H*0.55,w:W*0.50,h:14},
-        {x:W*0.75,y:H*0.30,w:14,h:H*0.20},
+    { spawn:{x:VW*0.05,y:VH*0.06}, goal:{x:VW*0.82,y:VH*0.50,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.10,y:VH*0.30,w:VW*0.65,h:14},
+        {x:VW*0.30,y:VH*0.55,w:VW*0.50,h:14},
+        {x:VW*0.75,y:VH*0.30,w:14,h:VH*0.20},
       ], ink:0.85, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
     // 18 — master maze
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.05,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.20,y:H*0.18,w:W*0.30,h:14},
-        {x:W*0.55,y:H*0.18,w:W*0.30,h:14},
-        {x:W*0.10,y:H*0.34,w:W*0.40,h:14},
-        {x:W*0.55,y:H*0.34,w:W*0.30,h:14},
-        {x:W*0.30,y:H*0.50,w:W*0.30,h:14},
-        {x:W*0.10,y:H*0.66,w:W*0.30,h:14},
-        {x:W*0.50,y:H*0.66,w:W*0.40,h:14},
-        {x:W*0.30,y:H*0.82,w:W*0.40,h:14},
-        {x:W*0.20,y:H*0.50,w:14,h:H*0.16},
+    { spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.05,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.20,y:VH*0.18,w:VW*0.30,h:14},
+        {x:VW*0.55,y:VH*0.18,w:VW*0.30,h:14},
+        {x:VW*0.10,y:VH*0.34,w:VW*0.40,h:14},
+        {x:VW*0.55,y:VH*0.34,w:VW*0.30,h:14},
+        {x:VW*0.30,y:VH*0.50,w:VW*0.30,h:14},
+        {x:VW*0.10,y:VH*0.66,w:VW*0.30,h:14},
+        {x:VW*0.50,y:VH*0.66,w:VW*0.40,h:14},
+        {x:VW*0.30,y:VH*0.82,w:VW*0.40,h:14},
+        {x:VW*0.20,y:VH*0.50,w:14,h:VH*0.16},
       ], ink:1.05, medals:{platinum:4500,gold:6000,silver:8500,bronze:13000} },
   ];
 
@@ -611,7 +633,7 @@
   // Persistent storage
   // ============================================================
   const STORAGE_KEY = 'timeball.bestTimes.v3';
-  const GHOST_KEY   = 'timeball.ghosts.v3';
+  const GHOST_KEY   = 'timeball.ghosts.v4';   // v4: virtual-unit coords (vs v3 W/H-normalized)
   const SETTINGS_KEY= 'timeball.settings.v3';
   const PROGRESS_KEY= 'timeball.progress.v3';
   const PLAYS_KEY   = 'timeball.plays.v3';
@@ -1028,17 +1050,22 @@
   const btnPlay = document.getElementById('btn-play');
   const btnTool = document.getElementById('btn-tool');
 
-  let W = 0, H = 0, DPR = 1;
+  // Screen-space size of the canvas (CSS px), and the virtual->screen
+  // viewport transform recomputed on every resize.
+  let screenW = 0, screenH = 0, DPR = 1;
+  let viewScale = 1, viewOffX = 0, viewOffY = 0;
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 3);
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (ball) rebuildLevel({ keepStrokes: true });
+    screenW = window.innerWidth;
+    screenH = window.innerHeight;
+    canvas.width = screenW * DPR;
+    canvas.height = screenH * DPR;
+    canvas.style.width = screenW + 'px';
+    canvas.style.height = screenH + 'px';
+    // Fit virtual world inside the screen, preserving aspect (letterbox/pillarbox).
+    viewScale = Math.min(screenW / VW, screenH / VH);
+    viewOffX = (screenW - VW * viewScale) / 2;
+    viewOffY = (screenH - VH * viewScale) / 2;
   }
   window.addEventListener('resize', resize);
 
@@ -1055,20 +1082,17 @@
   let lostUntil = 0;
   let tool = 'draw'; // 'draw' | 'erase'
 
-  // Recording / ghost
+  // Recording / ghost (samples are [simTimeMs, virtX, virtY])
   let recording = [];
   let lastSampleAt = -Infinity;
-  const SAMPLE_INTERVAL = 30;
 
-  // Timer
-  let timerAccum = 0;
-  let timerStartedAt = null;
-  function timerMs() { return timerStartedAt == null ? timerAccum : timerAccum + (performance.now() - timerStartedAt); }
-  function timerStart() { if (timerStartedAt == null) timerStartedAt = performance.now(); }
-  function timerStop() { if (timerStartedAt != null) { timerAccum += performance.now() - timerStartedAt; timerStartedAt = null; } }
-  function timerReset() { timerAccum = 0; timerStartedAt = null; }
+  // Deterministic sim clock — only advances during physics steps, so the
+  // timer is independent of FPS and never drifts from physics state.
+  let simTimeMs = 0;
+  let physicsAcc = 0;
+  function timerMs() { return simTimeMs; }
+  function timerReset() { simTimeMs = 0; physicsAcc = 0; }
 
-  function inkPixelBudget() { return (W + H) * 0.9; }
   function refreshInkUI() {
     const pct = Math.max(0, Math.min(1, inkLeft / inkMax));
     inkEl.textContent = Math.round(pct * 100) + '%';
@@ -1116,18 +1140,15 @@
 
   function rebuildLevel(opts = {}) {
     const L = LEVELS[levelIdx];
-    const sp = L.spawn(W, H);
-    ball = { x: sp.x, y: sp.y, vx: 0, vy: 0, r: 14 };
-    goal = L.goal(W, H);
-    walls = L.walls(W, H);
+    ball = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, r: BALL_R };
+    goal = { ...L.goal };
+    walls = L.walls.map(w => ({ ...w }));
     if (!opts.keepStrokes) {
       strokes = [];
-      inkMax = inkPixelBudget() * L.ink;
+      inkMax = INK_BUDGET_BASE * L.ink;
       inkLeft = inkMax;
     } else {
-      // Re-scale stroke points relative to new W/H?  Strokes are in absolute px;
-      // resize keeps them as drawn — close enough for a quick orientation tweak.
-      inkMax = inkPixelBudget() * L.ink;
+      inkMax = INK_BUDGET_BASE * L.ink;
     }
     won = false;
     lost = false;
@@ -1145,8 +1166,7 @@
   function repeatAttempt() {
     // Keep strokes; reset ball + timer.
     const L = LEVELS[levelIdx];
-    const sp = L.spawn(W, H);
-    ball = { x: sp.x, y: sp.y, vx: 0, vy: 0, r: 14 };
+    ball = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, r: BALL_R };
     won = false;
     lost = false;
     paused = true;
@@ -1179,17 +1199,19 @@
     updateToolButton();
   }
 
-  // ---- Input ----
+  // ---- Input (pointer events arrive in screen px; convert to virtual) ----
   function pointerPos(e) {
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    return { x: (sx - viewOffX) / viewScale, y: (sy - viewOffY) / viewScale };
   }
   function distPointSeg(px, py, ax, ay, bx, by) {
     const c = closestOnSeg(px, py, ax, ay, bx, by);
     return Math.hypot(px - c.x, py - c.y);
   }
   function tryEraseAt(p) {
-    const ER = 18;
+    const ER = 28;   // virtual units — radius around eraser pointer
     let removed = false;
     for (let i = strokes.length - 1; i >= 0; i--) {
       const s = strokes[i];
@@ -1229,7 +1251,7 @@
     const last = currentStroke.points[currentStroke.points.length - 1];
     const dx = p.x - last.x, dy = p.y - last.y;
     const d = Math.hypot(dx, dy);
-    if (d < 3) return;
+    if (d < 5) return;   // min segment length in virtual units
     if (inkLeft - d <= 0) {
       const t = inkLeft / d;
       currentStroke.points.push({ x: last.x + dx * t, y: last.y + dy * t });
@@ -1264,13 +1286,8 @@
   btnPlay.addEventListener('click', () => {
     if (won || lost) { repeatAttempt(); return; }
     paused = !paused;
-    if (paused) {
-      timerStop();
-    } else {
-      timerStart();
-      // Begin video capture only when (re)starting from a fresh attempt.
-      if (timerMs() < 50) startVideoCapture();
-    }
+    // Begin video capture only when (re)starting from a fresh attempt.
+    if (!paused && timerMs() < 50) startVideoCapture();
     updatePlayButton();
   });
   document.getElementById('btn-repeat').addEventListener('click', () => {
@@ -1285,10 +1302,7 @@
     rebuildLevel();
   });
 
-  // ---- Physics ----
-  const GRAV = 1400, RESTITUTION = 0.35, FRICTION = 0.985, AIR = 0.999, MAX_V = 2400;
-  const OFFSCREEN_MARGIN = 80;
-
+  // ---- Physics (all in virtual units, see virtual-coords block above) ----
   function clampV() {
     const sp = Math.hypot(ball.vx, ball.vy);
     if (sp > MAX_V) { ball.vx = ball.vx / sp * MAX_V; ball.vy = ball.vy / sp * MAX_V; }
@@ -1343,8 +1357,8 @@
   }
   function checkOffscreen() {
     return ball.x + ball.r < -OFFSCREEN_MARGIN ||
-           ball.x - ball.r >  W + OFFSCREEN_MARGIN ||
-           ball.y - ball.r >  H + OFFSCREEN_MARGIN ||
+           ball.x - ball.r >  VW + OFFSCREEN_MARGIN ||
+           ball.y - ball.r >  VH + OFFSCREEN_MARGIN ||
            ball.y + ball.r < -OFFSCREEN_MARGIN;
   }
   function checkGoal() {
@@ -1353,9 +1367,8 @@
     const inY = ball.y + ball.r > goal.y && ball.y < goal.y + goal.h + ball.r;
     if (inX && inY) {
       won = true;
-      timerStop();
       const total = timerMs();
-      recording.push([total, ball.x / W, ball.y / H]);
+      recording.push([total, ball.x, ball.y]);
       // Count this completed run for the "favorite track" stat.
       plays[levelIdx] = (plays[levelIdx] || 0) + 1;
       savePlays();
@@ -1376,16 +1389,15 @@
     }
   }
   function maybeSampleGhost() {
-    const t = timerMs();
-    if (t - lastSampleAt >= SAMPLE_INTERVAL) {
-      recording.push([t, ball.x / W, ball.y / H]);
-      lastSampleAt = t;
+    if (simTimeMs - lastSampleAt >= SAMPLE_INTERVAL) {
+      recording.push([simTimeMs, ball.x, ball.y]);
+      lastSampleAt = simTimeMs;
     }
   }
   function ghostPosAt(t) {
     const g = ghosts[levelIdx];
     if (!g || g.length === 0) return null;
-    if (t < g[0][0]) return { x: g[0][1] * W, y: g[0][2] * H };
+    if (t < g[0][0]) return { x: g[0][1], y: g[0][2] };
     if (t >= g[g.length - 1][0]) return null;
     let lo = 0, hi = g.length - 1;
     while (lo + 1 < hi) {
@@ -1394,7 +1406,7 @@
     }
     const a = g[lo], b = g[hi];
     const u = (t - a[0]) / (b[0] - a[0]);
-    return { x: (a[1] + (b[1] - a[1]) * u) * W, y: (a[2] + (b[2] - a[2]) * u) * H };
+    return { x: a[1] + (b[1] - a[1]) * u, y: a[2] + (b[2] - a[2]) * u };
   }
 
   // ============================================================
@@ -1523,15 +1535,29 @@
   }
 
   // ---- Render ----
+  // All game-content drawing happens in virtual coords. A single transform
+  // applies (DPR * viewScale) and centers the virtual world inside the
+  // physical canvas; letterbox bands are filled with the outer bg color.
   function draw() {
-    ctx.clearRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    // 1) Outer bg / letterbox bands — identity transform, raw canvas px.
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#0a0d12';
+    ctx.fillRect(0, 0, screenW, screenH);
+
+    // 2) Virtual viewport transform + clip.
+    ctx.setTransform(DPR * viewScale, 0, 0, DPR * viewScale, DPR * viewOffX, DPR * viewOffY);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, VW, VH);
+    ctx.clip();
+
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
     g.addColorStop(0, '#141a24'); g.addColorStop(1, '#0a0d12');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
 
     ctx.fillStyle = '#3a4254';
     ctx.strokeStyle = '#525c73';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 2;
     for (const w of walls) {
       roundRect(w.x, w.y, w.w, w.h, 4);
       ctx.fill(); ctx.stroke();
@@ -1544,19 +1570,19 @@
     ctx.fillStyle = '#ffd166';
     roundRect(goal.x, goal.y, goal.w, goal.h, 6);
     ctx.fill(); ctx.restore();
-    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(goal.x + goal.w/2, goal.y);
-    ctx.lineTo(goal.x + goal.w/2, goal.y - 28);
+    ctx.lineTo(goal.x + goal.w/2, goal.y - 32);
     ctx.stroke();
     ctx.fillStyle = '#ef476f';
     ctx.beginPath();
-    ctx.moveTo(goal.x + goal.w/2, goal.y - 28);
-    ctx.lineTo(goal.x + goal.w/2 + 16, goal.y - 22);
-    ctx.lineTo(goal.x + goal.w/2, goal.y - 16);
+    ctx.moveTo(goal.x + goal.w/2, goal.y - 32);
+    ctx.lineTo(goal.x + goal.w/2 + 18, goal.y - 25);
+    ctx.lineTo(goal.x + goal.w/2, goal.y - 18);
     ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle = '#9bd4ff'; ctx.lineWidth = 4;
+    ctx.strokeStyle = '#9bd4ff'; ctx.lineWidth = 7;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of strokes) drawStroke(s);
     if (currentStroke) {
@@ -1570,8 +1596,8 @@
       if (gp) {
         ctx.save();
         ctx.globalAlpha = 0.55;
-        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 5]);
         ctx.beginPath();
         ctx.arc(gp.x, gp.y, ball.r, 0, Math.PI * 2);
         ctx.stroke();
@@ -1593,10 +1619,7 @@
       ctx.restore();
     }
 
-    // Eraser cursor
-    if (tool === 'erase' && erasing) {
-      // (visual feedback could be added here)
-    }
+    ctx.restore();   // end virtual-viewport clip
 
     timeEl.textContent = fmtTime(timerMs());
     timeEl.style.color = won ? '#ffd166' : (lost ? '#ef476f' : (paused ? 'rgba(230,232,238,0.6)' : '#e6e8ee'));
@@ -1621,31 +1644,39 @@
   }
 
   // ---- Loop ----
+  // Deterministic fixed-timestep accumulator: each frame appends real elapsed
+  // time, then we run as many STEP-sized physics steps as fit. Leftover
+  // accumulator carries to next frame, so behavior is identical across FPS.
+  // (dt is clamped to avoid a spiral-of-death after tab-switch / GC pauses.)
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min((now - last) / 1000, 1 / 30);
+    const dt = Math.min((now - last) / 1000, 0.25);
     last = now;
-    const STEP = 1 / 240;
-    let acc = (paused || won || lost) ? 0 : dt;
-    while (acc > 0) {
-      const h = Math.min(STEP, acc);
-      ball.vy += GRAV * h;
-      ball.vx *= AIR; ball.vy *= AIR;
-      clampV();
-      ball.x += ball.vx * h; ball.y += ball.vy * h;
-      resolveCollisions();
-      maybeSampleGhost();
-      acc -= h;
-    }
-    if (!won && !lost && !paused && checkOffscreen()) {
-      lost = true; timerStop();
-      lostUntil = performance.now() + 700;
-      showToast('Lost!', 'Off the map');
+    if (!paused && !won && !lost) {
+      physicsAcc += dt;
+      while (physicsAcc >= STEP) {
+        ball.vy += GRAV * STEP;
+        ball.vx *= AIR; ball.vy *= AIR;
+        clampV();
+        ball.x += ball.vx * STEP; ball.y += ball.vy * STEP;
+        resolveCollisions();
+        simTimeMs += STEP * 1000;
+        maybeSampleGhost();
+        physicsAcc -= STEP;
+        if (checkOffscreen()) {
+          lost = true;
+          lostUntil = performance.now() + 700;
+          showToast('Lost!', 'Off the map');
+          physicsAcc = 0;
+          break;
+        }
+        checkGoal();
+        if (won) { physicsAcc = 0; break; }
+      }
     }
     if (lost && performance.now() >= lostUntil && settings.autoReset) {
       repeatAttempt();
     }
-    checkGoal();
     draw();
     requestAnimationFrame(frame);
   }
