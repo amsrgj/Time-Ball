@@ -919,9 +919,7 @@
         <div class="time">${t != null ? fmtTime(t) : '—'}</div>
       `;
       card.addEventListener('click', () => {
-        levelIdx = i;
-        progress.currentLevel = i;
-        saveProgress();
+        gotoLevel(i);
         showScreen('game');
       });
       grid.appendChild(card);
@@ -1069,8 +1067,12 @@
   }
   window.addEventListener('resize', resize);
 
-  let levelIdx = progress.currentLevel || 0;
-  if (levelIdx >= LEVELS.length) levelIdx = 0;
+  // Current level index — single source of truth for navigation. Every
+  // entry point (Circuits card, Play, Next button, trophy Next, boot)
+  // flows through gotoLevel/nextLevel below, so the in-memory state,
+  // persisted progress, HUD labels, and rebuilt physics geometry can
+  // never disagree.
+  let levelIdx = 0;
 
   let ball, goal, walls = [];
   let strokes = [];
@@ -1176,6 +1178,25 @@
     updatePlayButton();
   }
 
+  // ---- Level navigation (single entry point for all flows) ----
+  // Validates the index, persists progress, and rebuilds geometry so the
+  // HUD, physics, strokes, and records lookup always reference the same
+  // LEVELS[levelIdx]. Tapping the current level in Circuits is a no-op
+  // (preserves in-progress strokes); any other change rebuilds the level.
+  function gotoLevel(idx) {
+    if (typeof idx !== 'number' || !isFinite(idx)) idx = 0;
+    const n = LEVELS.length;
+    idx = ((Math.floor(idx) % n) + n) % n;
+    if (idx === levelIdx && ball) return;
+    levelIdx = idx;
+    if (progress.currentLevel !== idx) {
+      progress.currentLevel = idx;
+      saveProgress();
+    }
+    rebuildLevel();
+  }
+  function nextLevel() { gotoLevel(levelIdx + 1); }
+
   function updatePlayButton() {
     btnPlay.textContent = paused ? '▶ Play' : '⏸ Pause';
   }
@@ -1190,7 +1211,6 @@
   }
 
   function resumeGameScreen() {
-    if (!ball) rebuildLevel();
     refreshBestUI();
     refreshTargetsRibbon();
     levelEl.textContent = String(levelIdx + 1);
@@ -1296,11 +1316,7 @@
   document.getElementById('btn-reset').addEventListener('click', () => {
     rebuildLevel();
   });
-  document.getElementById('btn-next').addEventListener('click', () => {
-    levelIdx = (levelIdx + 1) % LEVELS.length;
-    progress.currentLevel = levelIdx; saveProgress();
-    rebuildLevel();
-  });
+  document.getElementById('btn-next').addEventListener('click', nextLevel);
 
   // ---- Physics (all in virtual units, see virtual-coords block above) ----
   function clampV() {
@@ -1490,9 +1506,7 @@
   document.getElementById('trophy-repeat').addEventListener('click', () => { hideTrophy(); repeatAttempt(); });
   document.getElementById('trophy-next').addEventListener('click', () => {
     hideTrophy();
-    levelIdx = (levelIdx + 1) % LEVELS.length;
-    progress.currentLevel = levelIdx; saveProgress();
-    rebuildLevel();
+    nextLevel();
   });
   document.getElementById('trophy-share').addEventListener('click', async () => {
     if (!lastWinInfo) return;
@@ -1683,7 +1697,7 @@
 
   // Boot
   resize();
-  rebuildLevel();
+  gotoLevel(progress.currentLevel ?? 0);
   updateToolButton();
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
