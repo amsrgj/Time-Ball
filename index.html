@@ -581,79 +581,65 @@
   //           rewriting saved records.
   //   spawn:  {x, y}
   //   goal:   {x, y, w, h}
-  //   walls:  [{x, y, w, h}, ...]
+  //   walls:  [{x, y, w, h}, ...]                    axis-aligned rectangles
+  //   lines:  [{x1, y1, x2, y2, f?, r?}, ...]        optional preset line
+  //           segments (ramps, bumpers, rails). f/r override WALL_FRICTION /
+  //           WALL_RESTITUTION per surface.
   //   ink:    multiplier on INK_BUDGET_BASE
   //   medals: { platinum, gold, silver, bronze } in ms (lower = better)
-  // Medal targets — tightened toward what a skilled run can hit.
-  // platinum = top ~0.5% / world-class · gold = top ~2.5% · silver = top ~10% · bronze = top ~25%
-  // (We can't measure real percentiles without a backend; these are calibrated guesses.)
+  // Array order = play order. Roughly easy → hard; difficulty also varies
+  // by precision required, ink budget, and routing complexity, so the
+  // progression isn't strictly monotonic on platinum time.
+  // Medal targets: platinum ≈ top 0.5% / gold ≈ top 2.5% / silver ≈ top 10%
+  // / bronze ≈ top 25%. Calibrated guesses pending real-play data.
   const LEVELS = [
-    // gentle intro
+    // ---- intro (easy) ----
+    // 1 — gentle intro
     { id:'gentle-intro',
       spawn:{x:VW*0.18,y:VH*0.18}, goal:{x:VW*0.70,y:VH*0.85,w:VW*0.20,h:18},
       walls:[{x:VW*0.32,y:VH*0.45,w:VW*0.26,h:14}], ink:1.0,
       medals:{platinum:1200,gold:1700,silver:2400,bronze:3500} },
-    // cross-screen left, mid-height goal
+    // 2 — cross-screen left, mid-height goal
     { id:'cross-screen-left',
       spawn:{x:VW*0.85,y:VH*0.12}, goal:{x:VW*0.04,y:VH*0.55,w:VW*0.20,h:18},
       walls:[{x:VW*0.30,y:VH*0.40,w:VW*0.55,h:14}], ink:1.0,
       medals:{platinum:1800,gold:2400,silver:3300,bronze:5000} },
-    // narrow funnel
-    { id:'narrow-funnel',
-      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
-      walls:[{x:VW*0.05,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.60,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.30,y:VH*0.74,w:VW*0.40,h:14}], ink:0.85,
-      medals:{platinum:1600,gold:2200,silver:3000,bronze:4500} },
-    // vertical column with gap above, goal mid-right
+    // 3 — vertical column with gap above, goal mid-right
     { id:'column-gap',
       spawn:{x:VW*0.10,y:VH*0.18}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
       walls:[{x:VW*0.46,y:VH*0.42,w:14,h:VH*0.45},{x:VW*0.30,y:VH*0.62,w:VW*0.20,h:14}], ink:0.95,
       medals:{platinum:1700,gold:2400,silver:3400,bronze:5000} },
-    // staircase
+    // 4 — staircase
     { id:'staircase',
       spawn:{x:VW*0.92,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.86,w:VW*0.18,h:18},
       walls:[{x:VW*0.55,y:VH*0.32,w:VW*0.30,h:14},{x:VW*0.35,y:VH*0.50,w:VW*0.30,h:14},{x:VW*0.15,y:VH*0.68,w:VW*0.30,h:14}], ink:0.9,
       medals:{platinum:2200,gold:3000,silver:4200,bronze:6500} },
-    // Π shape — Platinum 1.5s · Bronze 3.14s (π easter egg; do not change bronze)
-    { id:'pi-shape',
-      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.06,y:VH*0.62,w:VW*0.18,h:18},
-      walls:[{x:VW*0.30,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.20,y:VH*0.30,w:VW*0.60,h:14}], ink:0.95,
-      medals:{platinum:1500,gold:2000,silver:2600,bronze:3140} },
-    // two stepped shelves, half-screen goal
+    // 5 — two stepped shelves, half-screen goal
     { id:'stepped-shelves',
       spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
       walls:[{x:VW*0.20,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.05,y:VH*0.55,w:VW*0.55,h:14}], ink:0.85,
       medals:{platinum:1900,gold:2600,silver:3700,bronze:5500} },
-    // long traverse, dense scatter
-    { id:'dense-scatter',
-      spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.04,y:VH*0.92,w:VW*0.18,h:18},
-      walls:[{x:VW*0.40,y:VH*0.22,w:VW*0.45,h:14},{x:VW*0.15,y:VH*0.40,w:VW*0.45,h:14},{x:VW*0.55,y:VH*0.58,w:VW*0.30,h:14},{x:VW*0.25,y:VH*0.74,w:VW*0.40,h:14},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.18}], ink:0.9,
-      medals:{platinum:2800,gold:3700,silver:5200,bronze:7500} },
-    // three staggered shelves
-    { id:'staggered-shelves',
-      spawn:{x:VW*0.08,y:VH*0.10}, goal:{x:VW*0.78,y:VH*0.88,w:VW*0.18,h:18},
-      walls:[{x:VW*0.00,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.45,y:VH*0.50,w:VW*0.55,h:14},{x:VW*0.00,y:VH*0.70,w:VW*0.55,h:14}], ink:0.95,
-      medals:{platinum:2500,gold:3300,silver:4500,bronze:6500} },
-    // narrow goal between two pillars
-    { id:'narrow-goal-pillars',
-      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.43,y:VH*0.85,w:VW*0.14,h:18},
-      walls:[{x:VW*0.30,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.68,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.10,y:VH*0.35,w:VW*0.30,h:14},{x:VW*0.60,y:VH*0.35,w:VW*0.30,h:14}], ink:0.85,
-      medals:{platinum:2200,gold:3000,silver:4200,bronze:6000} },
-    // overhang ceiling, goal lower-left
-    { id:'ceiling-overhang',
-      spawn:{x:VW*0.85,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.78,w:VW*0.18,h:18},
-      walls:[{x:VW*0.20,y:VH*0.28,w:VW*0.65,h:14},{x:VW*0.20,y:VH*0.28,w:14,h:VH*0.20},{x:VW*0.30,y:VH*0.55,w:VW*0.40,h:14}], ink:0.95,
-      medals:{platinum:2600,gold:3500,silver:4800,bronze:7000} },
-    // half-screen goal on the right, low ink
-    { id:'low-ink-right',
-      spawn:{x:VW*0.10,y:VH*0.08}, goal:{x:VW*0.80,y:VH*0.55,w:VW*0.16,h:18},
-      walls:[{x:VW*0.25,y:VH*0.30,w:VW*0.50,h:14},{x:VW*0.55,y:VH*0.30,w:14,h:VH*0.20}], ink:0.7,
-      medals:{platinum:2300,gold:3100,silver:4300,bronze:6200} },
-    // scatter maze
-    { id:'scatter-maze',
-      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.93,w:VW*0.16,h:18},
-      walls:[{x:VW*0.10,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.65,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.35,y:VH*0.36,w:VW*0.30,h:14},{x:VW*0.05,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.65,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.30,y:VH*0.70,w:14,h:VH*0.18},{x:VW*0.66,y:VH*0.70,w:14,h:VH*0.18}], ink:1.1,
-      medals:{platinum:3500,gold:4700,silver:6500,bronze:9500} },
-    // zigzag (4 shelves)
+    // 6 — narrow funnel
+    { id:'narrow-funnel',
+      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[{x:VW*0.05,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.60,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.30,y:VH*0.74,w:VW*0.40,h:14}], ink:0.85,
+      medals:{platinum:1600,gold:2200,silver:3000,bronze:4500} },
+    // 7 — ramp funnel (NEW archetype: two diagonal ramps converge to a
+    // narrow exit; spawn is off-center so a redirect line is needed)
+    { id:'ramp-funnel',
+      spawn:{x:VW*0.18,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[],
+      lines:[
+        { x1:VW*0.04, y1:VH*0.40, x2:VW*0.46, y2:VH*0.78, f:0.998 },  // left ramp
+        { x1:VW*0.96, y1:VH*0.40, x2:VW*0.54, y2:VH*0.78, f:0.998 },  // right ramp
+      ], ink:0.65, medals:{platinum:1500,gold:2000,silver:2800,bronze:4000} },
+    // ---- medium ----
+    // 8 — Π shape (Platinum 1.5s · Bronze 3.14s — π easter egg; do not touch bronze)
+    { id:'pi-shape',
+      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.06,y:VH*0.62,w:VW*0.18,h:18},
+      walls:[{x:VW*0.30,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.20,y:VH*0.30,w:VW*0.60,h:14}], ink:0.95,
+      medals:{platinum:1500,gold:2000,silver:2600,bronze:3140} },
+    // 9 — zigzag (4 shelves)
     { id:'zigzag-4',
       spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.90,w:VW*0.18,h:18},
       walls:[
@@ -662,7 +648,30 @@
         {x:VW*0.05,y:VH*0.58,w:VW*0.45,h:14},
         {x:VW*0.50,y:VH*0.76,w:VW*0.30,h:14},
       ], ink:0.95, medals:{platinum:1500,gold:2100,silver:3000,bronze:4500} },
-    // slot, deep goal
+    // 10 — three staggered shelves
+    { id:'staggered-shelves',
+      spawn:{x:VW*0.08,y:VH*0.10}, goal:{x:VW*0.78,y:VH*0.88,w:VW*0.18,h:18},
+      walls:[{x:VW*0.00,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.45,y:VH*0.50,w:VW*0.55,h:14},{x:VW*0.00,y:VH*0.70,w:VW*0.55,h:14}], ink:0.95,
+      medals:{platinum:2500,gold:3300,silver:4500,bronze:6500} },
+    // 11 — pinball bounce lane (NEW archetype: alternating bouncy
+    // diagonals zigzag the ball downward; r=0.65 on rails makes the
+    // lane lively)
+    { id:'pinball-lane',
+      spawn:{x:VW*0.50,y:VH*0.04}, goal:{x:VW*0.42,y:VH*0.94,w:VW*0.16,h:18},
+      walls:[],
+      lines:[
+        { x1:VW*0.18, y1:VH*0.20, x2:VW*0.58, y2:VH*0.28, r:0.65 },
+        { x1:VW*0.82, y1:VH*0.38, x2:VW*0.42, y2:VH*0.46, r:0.65 },
+        { x1:VW*0.18, y1:VH*0.56, x2:VW*0.58, y2:VH*0.64, r:0.65 },
+        { x1:VW*0.82, y1:VH*0.74, x2:VW*0.42, y2:VH*0.82, r:0.65 },
+      ], ink:0.6, medals:{platinum:2400,gold:3100,silver:4300,bronze:6000} },
+    // ---- medium-hard ----
+    // 12 — overhang ceiling, goal lower-left
+    { id:'ceiling-overhang',
+      spawn:{x:VW*0.85,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.78,w:VW*0.18,h:18},
+      walls:[{x:VW*0.20,y:VH*0.28,w:VW*0.65,h:14},{x:VW*0.20,y:VH*0.28,w:14,h:VH*0.20},{x:VW*0.30,y:VH*0.55,w:VW*0.40,h:14}], ink:0.95,
+      medals:{platinum:2600,gold:3500,silver:4800,bronze:7000} },
+    // 13 — slot, deep goal
     { id:'slot-deep',
       spawn:{x:VW*0.85,y:VH*0.07}, goal:{x:VW*0.45,y:VH*0.93,w:VW*0.10,h:18},
       walls:[
@@ -670,7 +679,41 @@
         {x:VW*0.30,y:VH*0.40,w:14,h:VH*0.50},
         {x:VW*0.70,y:VH*0.40,w:14,h:VH*0.50},
       ], ink:0.85, medals:{platinum:2000,gold:2700,silver:3800,bronze:5500} },
-    // pillars + overhang
+    // 14 — narrow drop slot (NEW archetype: shoulders funnel the ball
+    // into a tight vertical slot with a small goal at the bottom)
+    { id:'narrow-drop-slot',
+      spawn:{x:VW*0.50,y:VH*0.04}, goal:{x:VW*0.46,y:VH*0.93,w:VW*0.08,h:18},
+      walls:[
+        {x:VW*0.05,y:VH*0.20,w:VW*0.35,h:14},          // left shoulder
+        {x:VW*0.60,y:VH*0.20,w:VW*0.35,h:14},          // right shoulder
+        {x:VW*0.40,y:VH*0.28,w:14,h:VH*0.60},          // left slot wall
+        {x:VW*0.58,y:VH*0.28,w:14,h:VH*0.60},          // right slot wall
+      ], ink:0.5, medals:{platinum:2200,gold:2900,silver:4000,bronze:5500} },
+    // 15 — narrow goal between two pillars
+    { id:'narrow-goal-pillars',
+      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.43,y:VH*0.85,w:VW*0.14,h:18},
+      walls:[{x:VW*0.30,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.68,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.10,y:VH*0.35,w:VW*0.30,h:14},{x:VW*0.60,y:VH*0.35,w:VW*0.30,h:14}], ink:0.85,
+      medals:{platinum:2200,gold:3000,silver:4200,bronze:6000} },
+    // 16 — half-screen goal on the right, low ink
+    { id:'low-ink-right',
+      spawn:{x:VW*0.10,y:VH*0.08}, goal:{x:VW*0.80,y:VH*0.55,w:VW*0.16,h:18},
+      walls:[{x:VW*0.25,y:VH*0.30,w:VW*0.50,h:14},{x:VW*0.55,y:VH*0.30,w:14,h:VH*0.20}], ink:0.7,
+      medals:{platinum:2300,gold:3100,silver:4300,bronze:6200} },
+    // ---- hard ----
+    // 17 — long traverse, dense scatter
+    { id:'dense-scatter',
+      spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.04,y:VH*0.92,w:VW*0.18,h:18},
+      walls:[{x:VW*0.40,y:VH*0.22,w:VW*0.45,h:14},{x:VW*0.15,y:VH*0.40,w:VW*0.45,h:14},{x:VW*0.55,y:VH*0.58,w:VW*0.30,h:14},{x:VW*0.25,y:VH*0.74,w:VW*0.40,h:14},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.18}], ink:0.9,
+      medals:{platinum:2800,gold:3700,silver:5200,bronze:7500} },
+    // 18 — long horizontal traverse, half-screen goal
+    { id:'horizontal-traverse',
+      spawn:{x:VW*0.05,y:VH*0.06}, goal:{x:VW*0.82,y:VH*0.50,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.10,y:VH*0.30,w:VW*0.65,h:14},
+        {x:VW*0.30,y:VH*0.55,w:VW*0.50,h:14},
+        {x:VW*0.75,y:VH*0.30,w:14,h:VH*0.20},
+      ], ink:0.85, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
+    // 19 — pillars + overhang
     { id:'pillars-overhang',
       spawn:{x:VW*0.10,y:VH*0.06}, goal:{x:VW*0.80,y:VH*0.92,w:VW*0.16,h:18},
       walls:[
@@ -680,15 +723,12 @@
         {x:VW*0.65,y:VH*0.50,w:14,h:VH*0.30},
         {x:VW*0.40,y:VH*0.78,w:VW*0.40,h:14},
       ], ink:1.0, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
-    // long horizontal traverse, half-screen goal
-    { id:'horizontal-traverse',
-      spawn:{x:VW*0.05,y:VH*0.06}, goal:{x:VW*0.82,y:VH*0.50,w:VW*0.16,h:18},
-      walls:[
-        {x:VW*0.10,y:VH*0.30,w:VW*0.65,h:14},
-        {x:VW*0.30,y:VH*0.55,w:VW*0.50,h:14},
-        {x:VW*0.75,y:VH*0.30,w:14,h:VH*0.20},
-      ], ink:0.85, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
-    // master maze
+    // 20 — scatter maze
+    { id:'scatter-maze',
+      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.93,w:VW*0.16,h:18},
+      walls:[{x:VW*0.10,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.65,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.35,y:VH*0.36,w:VW*0.30,h:14},{x:VW*0.05,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.65,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.30,y:VH*0.70,w:14,h:VH*0.18},{x:VW*0.66,y:VH*0.70,w:14,h:VH*0.18}], ink:1.1,
+      medals:{platinum:3500,gold:4700,silver:6500,bronze:9500} },
+    // 21 — master maze
     { id:'master-maze',
       spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.05,y:VH*0.92,w:VW*0.16,h:18},
       walls:[
@@ -1207,7 +1247,7 @@
   // never disagree.
   let levelIdx = 0;
 
-  let ball, goal, walls = [];
+  let ball, goal, walls = [], rails = [];
   let strokes = [];
   let currentStroke = null;
   let inkLeft = 1, inkMax = 1;
@@ -1276,6 +1316,7 @@
     ball = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, r: BALL_R };
     goal = { ...L.goal };
     walls = L.walls.map(w => ({ ...w }));
+    rails = L.lines ? L.lines.map(l => ({ ...l })) : [];
     if (!opts.keepStrokes) {
       strokes = [];
       inkMax = INK_BUDGET_BASE * L.ink;
@@ -1472,6 +1513,15 @@
       for (let i = 1; i < pts.length; i++) {
         yield { x1: pts[i-1].x, y1: pts[i-1].y, x2: pts[i].x, y2: pts[i].y, f: sf, r: sr };
       }
+    }
+    // Preset rails (level-defined line obstacles — ramps, bumpers). Each
+    // rail can override f/r per surface; defaults to wall coefficients.
+    for (const L of rails) {
+      yield {
+        x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2,
+        f: L.f != null ? L.f : WALL_FRICTION,
+        r: L.r != null ? L.r : WALL_RESTITUTION,
+      };
     }
   }
   function closestOnSeg(px, py, ax, ay, bx, by) {
@@ -1758,6 +1808,24 @@
     for (const w of walls) {
       roundRect(w.x, w.y, w.w, w.h, 4);
       ctx.fill(); ctx.stroke();
+    }
+
+    // Preset rails (level-defined line obstacles). Warm copper hue, kept
+    // distinct from player strokes (#9bd4ff cyan) and walls (slate).
+    if (rails.length) {
+      ctx.save();
+      ctx.strokeStyle = '#c4895a';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(196, 137, 90, 0.35)';
+      ctx.shadowBlur = 6;
+      for (const R of rails) {
+        ctx.beginPath();
+        ctx.moveTo(R.x1, R.y1);
+        ctx.lineTo(R.x2, R.y2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // Goal
