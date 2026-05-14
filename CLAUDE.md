@@ -16,15 +16,16 @@ Physics puzzle game: draw a line, drop the ball, race the clock to the goal.
 
 The whole game lives inside one IIFE in `<script>` at the bottom of `index.html`. Major sections, in order:
 
-1. **`LEVELS`** — array of 18 circuit definitions. Each has `spawn(W,H)`, `goal(W,H)`, `walls(W,H)`, `ink` multiplier, and `medals: { platinum, gold, silver, bronze }` in ms. Coordinates are W/H-relative so layouts scale to any screen.
-2. **Persistent storage** — keys: `timeball.bestTimes.v3`, `timeball.ghosts.v3`, `timeball.settings.v3`, `timeball.progress.v3`, `timeball.plays.v3`. Bump the version suffix on schema changes.
-3. **Screen routing** — state machine: `welcome → menu → {circuits, records, stats, settings, about, game}`. `showScreen(name)` toggles `.active` and triggers per-screen render hooks. Trophy modal hides automatically when leaving `game`.
-4. **Menu attract demo** — small canvas at top of `#screen-menu` runs a scripted physics loop (`startMenuDemo`/`stopMenuDemo`). Lower gravity (600 vs 1400) than main game.
-5. **Game loop** — `requestAnimationFrame` drives a variable-step outer loop with a fixed-step (1/240 s) inner physics loop. Stable across frame rates.
-6. **Physics** — `closestOnSeg` finds the closest point on a segment to the ball; `resolveCollisions` pushes the ball out of penetration and reflects velocity along the normal with restitution + tangential friction. Walls expand to 4 edge segments via the `segments()` generator. Player strokes contribute their own segments. No screen-edge bouncing — the ball can fly off any side, and `checkOffscreen` triggers a reset after a brief "Lost!" toast.
-7. **Recording / ghost** — every 30ms while running, `maybeSampleGhost` pushes `[t_ms, x/W, y/H]` into `recording`. On a new best, `recording` is saved as the level's ghost. Replay via `ghostPosAt(t)` with binary-search lerp.
-8. **Trophy modal** — Gran Turismo–style win animation (SVG cup, scale-in + Y-axis spin, tier-colored). Triggered from `checkGoal`. Buttons: Share / Repeat / Next / ✕.
-9. **Share** — `MediaRecorder` over `canvas.captureStream(30)`. Codec preference: `mp4 h264 → webm vp9 → webm vp8 → webm`. Falls back to text-only Web Share, then clipboard, if no recorder/share API.
+1. **Virtual coordinate system** — gameplay runs in a fixed `VW × VH` world (currently 1000 × 1600 portrait). All state — walls, spawn, goal, ball radius, gravity, friction, ink budget, sim time — is in virtual units, independent of screen size. The renderer maps virtual → screen via a single fit-and-letterbox transform (`viewScale`, `viewOffX`, `viewOffY`) recomputed on resize. Pointer events convert screen px → virtual on the way in.
+2. **`LEVELS`** — array of 21 circuit definitions, ordered roughly easy → hard. Each has a stable `id` slug, plain-object `spawn:{x,y}`, `goal:{x,y,w,h}`, `walls:[{x,y,w,h},...]` (axis-aligned rectangles), an optional `lines:[{x1,y1,x2,y2,f?,r?},...]` array of preset segment obstacles (ramps / bumpers / rails — per-line `f`/`r` override `WALL_FRICTION`/`WALL_RESTITUTION`), an `ink` multiplier, and `medals: { platinum, gold, silver, bronze }` in ms. Storage maps (`bestTimes`, `ghosts`, `plays`) and `progress.currentLevel` all reference the `id`, never the array position — reorder LEVELS freely without invalidating saved records. `LEVEL_INDEX_BY_ID` gives the reverse lookup. Access via helpers `bestTimeOf(idx)`, `ghostOf(idx)`, `playsOf(idx)`, `medalOf(idx)`, `isCompleted(idx)` rather than indexing the maps directly.
+3. **Persistent storage** — keys: `timeball.bestTimes.v4`, `timeball.ghosts.v5`, `timeball.settings.v3`, `timeball.progress.v4`, `timeball.plays.v4`. All per-circuit maps are id-keyed. `loadKeyedMap`/`loadProgress` one-shot migrate from the prior index-keyed schema on first load. Bump the version suffix on any schema change.
+4. **Screen routing** — state machine: `welcome → menu → {circuits, records, stats, settings, about, game}`. `showScreen(name)` toggles `.active` and triggers per-screen render hooks. Trophy modal hides automatically when leaving `game`.
+5. **Menu attract demo** — small canvas at top of `#screen-menu` runs a scripted physics loop (`startMenuDemo`/`stopMenuDemo`) in its own screen-px coord space (not virtual). Lower gravity (600) than main game.
+6. **Game loop** — `requestAnimationFrame` drives an outer loop that accumulates real `dt` into `physicsAcc`; the inner loop runs as many fixed `STEP = 1/240 s` physics ticks as fit, carrying the leftover to the next frame. `simTimeMs` only advances inside those ticks, so the on-screen timer and physics are deterministic and identical across FPS.
+7. **Physics** — `closestOnSeg` finds the closest point on a segment to the ball; `resolveCollisions` pushes the ball out of penetration and reflects velocity along the normal with restitution + tangential friction. Walls expand to 4 edge segments via the `segments()` generator. Player strokes contribute their own segments. No edge bouncing — the ball can fly off any side of the virtual world, and `checkOffscreen` (with `OFFSCREEN_MARGIN` vu of slack past `VW`/`VH`) triggers a reset after a brief "Lost!" toast.
+8. **Recording / ghost** — every 30ms of `simTimeMs`, `maybeSampleGhost` pushes `[simTimeMs, virtX, virtY]` into `recording`. On a new best, `recording` is saved as the level's ghost. Replay via `ghostPosAt(t)` with binary-search lerp; coords are virtual so they replay identically on any screen.
+9. **Trophy modal** — Gran Turismo–style win animation (SVG cup, scale-in + Y-axis spin, tier-colored). Triggered from `checkGoal`. Buttons: Share / Repeat / Next / ✕.
+10. **Share** — `MediaRecorder` over `canvas.captureStream(30)`. Codec preference: `mp4 h264 → webm vp9 → webm vp8 → webm`. Falls back to text-only Web Share, then clipboard, if no recorder/share API.
 
 ## Medals
 
@@ -44,10 +45,10 @@ The whole game lives inside one IIFE in `<script>` at the bottom of `index.html`
 ## Conventions
 
 - No emojis in source unless they're part of the UI (medal glyphs, button icons are intentional).
-- All persisted positions are W/H-normalized so resize/rotation doesn't break them.
+- All gameplay state (and persisted positions) is in virtual units, not screen px — resize/rotation just recomputes the viewport transform.
 - `let` for mutable state, `const` for handles. No classes.
 - CSS uses `--platinum / --gold / --silver / --bronze` variables — extend those rather than hard-coding hex.
-- Coordinate space inside the canvas is in CSS px; rendering scales by `DPR` once via `setTransform`.
+- Coordinate space for game content is virtual units; `draw()` applies a single `setTransform(DPR * viewScale, …)` and clips drawing to `[0,VW]×[0,VH]`. Letterbox bands are filled with the outer bg.
 
 ## Open work
 
@@ -61,4 +62,5 @@ The whole game lives inside one IIFE in `<script>` at the bottom of `index.html`
 - Adding a build step (defeats the single-file model).
 - Renaming storage keys without bumping the `.vN` suffix (silently wipes records).
 - Removing `closestOnSeg` from the IIFE scope — both the game and the menu demo use it.
-- Tunneling: max ball velocity is capped at 2400 px/s. Keep `MAX_V * STEP < ball.r` to prevent the ball from teleporting through thin lines.
+- Tunneling: the velocity cap is `MAX_V` vu/s (currently 3500) and the ball radius is `BALL_R` (currently 18). Keep `MAX_V * STEP < BALL_R` to prevent the ball from teleporting through thin lines (3500 * 1/240 ≈ 14.6 < 18 ✓). `clampV()` runs at the start of every step and again after collision resolution so the cap holds regardless of contact density.
+- Drawing without applying the viewport transform — anything rendered with raw `(0,0) → (screenW, screenH)` will sit outside the virtual world and won't line up with physics.

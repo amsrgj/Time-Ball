@@ -278,13 +278,122 @@
   .trophy-tier { font-size: 26px; font-weight: 800; letter-spacing: 0.16em; color: currentColor; text-shadow: 0 0 20px currentColor; animation: rise 500ms ease 280ms both; }
   .trophy-time { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); animation: rise 500ms ease 380ms both; }
   .trophy-sub { font-size: 13px; opacity: 0.7; min-height: 18px; animation: rise 500ms ease 480ms both; }
-  .trophy-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; justify-content: center; animation: rise 500ms ease 580ms both; }
+
+  /* Official tier-times ladder (one row per tier; player's earned row
+     stays fully lit, others are dimmed). */
+  .trophy-ladder {
+    display: flex; flex-direction: column; gap: 4px;
+    margin: 12px 0 4px; align-self: stretch;
+    font-variant-numeric: tabular-nums;
+    animation: rise 500ms ease 520ms both;
+  }
+  .ladder-row {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center;
+    padding: 7px 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px;
+    opacity: 0.5;
+    transition: opacity 200ms ease;
+  }
+  .ladder-row.earned { opacity: 0.9; }
+  .ladder-row.mine {
+    opacity: 1;
+    background: rgba(255,255,255,0.08); border-color: currentColor;
+    box-shadow: 0 0 14px -2px currentColor;
+  }
+  .ladder-row.tier-platinum { color: var(--platinum); }
+  .ladder-row.tier-gold     { color: var(--gold); }
+  .ladder-row.tier-silver   { color: var(--silver); }
+  .ladder-row.tier-bronze   { color: var(--bronze); }
+  .ladder-glyph { text-align: center; font-size: 14px; }
+  .ladder-label { color: var(--text); opacity: 0.75; letter-spacing: 0.04em; }
+  .ladder-time { font-weight: 600; }
+
+  /* Placeholder slot for future global leaderboard rank. getGlobalRank()
+     returns null today; this row stays "—" until a backend is wired in. */
+  .trophy-rank {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    margin-top: 4px; font-size: 12px;
+    align-self: stretch; justify-content: center;
+    animation: rise 500ms ease 560ms both;
+  }
+  .trophy-rank-label { opacity: 0.55; letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; }
+  .trophy-rank-value { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+  .trophy-rank-note  { opacity: 0.4; font-size: 10px; font-style: italic; }
+
+  .trophy-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: center; animation: rise 500ms ease 600ms both; }
   .trophy-actions button { padding: 10px 16px; font-size: 14px; }
   .trophy-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 16px; min-width: 32px; padding: 6px; }
   .trophy-panel.tier-platinum { color: var(--platinum); }
   .trophy-panel.tier-gold     { color: var(--gold); }
   .trophy-panel.tier-silver   { color: var(--silver); }
   .trophy-panel.tier-bronze   { color: var(--bronze); }
+
+  /* Level intro card (auto-fades; non-blocking — player can already draw) */
+  .level-intro {
+    position: fixed; left: 50%; top: 28%;
+    transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; z-index: 60;
+    animation: introIn 320ms cubic-bezier(.22,1.4,.36,1) both,
+               introOut 360ms ease 1300ms forwards;
+  }
+  .level-intro.hidden { display: none; }
+  @keyframes introIn  { from { opacity: 0; transform: translate(-50%, calc(-50% - 20px)); } to { opacity: 1; transform: translate(-50%, -50%); } }
+  @keyframes introOut { to   { opacity: 0; transform: translate(-50%, calc(-50% - 12px)); } }
+  .intro-eyebrow {
+    font-size: 11px; letter-spacing: 0.32em; opacity: 0.6; text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .intro-title {
+    margin-top: 8px;
+    font-size: 38px; font-weight: 800; letter-spacing: 0.05em;
+    background: linear-gradient(180deg, #ffffff, var(--accent));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 28px rgba(127, 179, 255, 0.25);
+  }
+
+  /* 3-2-1-GO countdown overlay (centered; one keyframe per tick) */
+  .countdown {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 140px; font-weight: 900; line-height: 1;
+    color: var(--text); pointer-events: none; z-index: 80;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 36px rgba(127, 179, 255, 0.5);
+    animation: countdownTick 580ms cubic-bezier(.18,1.2,.36,1) both;
+  }
+  .countdown.hidden { display: none; }
+  .countdown.go {
+    color: var(--gold); font-size: 110px; letter-spacing: 0.04em;
+    text-shadow: 0 0 36px rgba(255, 209, 102, 0.55);
+    animation: countdownGo 380ms cubic-bezier(.22,1.4,.36,1) both;
+  }
+  @keyframes countdownTick {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.45); }
+    25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  }
+  @keyframes countdownGo {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+  }
+
+  /* Win-screen confetti (DOM particles behind the trophy panel) */
+  .trophy-confetti {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  }
+  .confetti-bit {
+    position: absolute; top: -20px;
+    width: 9px; height: 13px; border-radius: 2px;
+    opacity: 0;
+    animation: confettiFall 2.4s cubic-bezier(.3,.1,.6,1) forwards;
+  }
+  @keyframes confettiFall {
+    0%   { transform: translate(0, -40px) rotate(0deg);   opacity: 0; }
+    8%   { opacity: 1; }
+    100% { transform: translate(var(--dx, 0), 70vh) rotate(720deg); opacity: 0; }
+  }
 
   /* Toast */
   #toast {
@@ -431,7 +540,7 @@
     </div>
   </div>
   <div id="hud-targets">
-    <div class="target plat hidden"  data-tier="platinum">★ <span></span></div>
+    <div class="target plat"  data-tier="platinum">★ <span></span></div>
     <div class="target gold"   data-tier="gold">●&nbsp;<span></span></div>
     <div class="target silver" data-tier="silver">●&nbsp;<span></span></div>
     <div class="target bronze" data-tier="bronze">●&nbsp;<span></span></div>
@@ -443,6 +552,13 @@
     <button id="btn-play" class="primary">▶ Play</button>
     <button id="btn-next">›</button>
   </div>
+  <!-- Level intro card: auto-fades when entering a circuit -->
+  <div id="level-intro" class="level-intro hidden">
+    <div class="intro-eyebrow">CIRCUIT <span id="intro-num">1</span> / <span id="intro-total">21</span></div>
+    <div class="intro-title" id="intro-title">Gentle Intro</div>
+  </div>
+  <!-- 3-2-1-GO countdown shown after Play, before physics start -->
+  <div id="countdown" class="countdown hidden"></div>
 </div>
 
 <div id="toast"></div>
@@ -450,6 +566,7 @@
 <!-- ========== Trophy modal (win animation) ========== -->
 <div id="trophy-modal" class="hidden">
   <div class="trophy-backdrop"></div>
+  <div class="trophy-confetti" id="trophy-confetti"></div>
   <div class="trophy-panel">
     <div class="trophy-stage">
       <div class="trophy-glow"></div>
@@ -485,6 +602,12 @@
     <div class="trophy-tier" id="trophy-tier">GOLD</div>
     <div class="trophy-time" id="trophy-time">0.00s</div>
     <div class="trophy-sub" id="trophy-sub"></div>
+    <div class="trophy-ladder" id="trophy-ladder"></div>
+    <div class="trophy-rank">
+      <span class="trophy-rank-label">Global rank</span>
+      <span class="trophy-rank-value" id="trophy-rank-value">—</span>
+      <span class="trophy-rank-note">leaderboards coming soon</span>
+    </div>
     <div class="trophy-actions">
       <button id="trophy-share">Share</button>
       <button id="trophy-repeat">↻ Repeat</button>
@@ -497,140 +620,272 @@
 <script>
 (() => {
   // ============================================================
+  // Virtual coordinate system
+  // ============================================================
+  // The game runs in a fixed virtual world VW x VH. All gameplay state —
+  // walls, spawn, goal, ball, ink, gravity, friction, sim time — is
+  // expressed in virtual units. The renderer maps virtual to screen via a
+  // single fit-and-letterbox transform; physics integrates with a
+  // deterministic fixed timestep accumulator, so behavior is identical
+  // regardless of FPS or screen size.
+  const VW = 1000;
+  const VH = 1600;
+  const BALL_R = 18;                  // virtual units
+  const GRAV = 1800;                  // vu / s^2
+  // Per-surface bounce coefficients. Walls feel a little grippy so the ball
+  // can settle; drawn lines feel slippery + lively so player ink reads as
+  // an arcade rail rather than a sticky stop.
+  const WALL_FRICTION   = 0.995;      // tangential retention per contact
+  const WALL_RESTITUTION = 0.40;      // normal energy retention on bounce
+  const STROKE_FRICTION   = 0.999;    // drawn lines: near-frictionless slide
+  const STROKE_RESTITUTION = 0.55;    // drawn lines: bouncier
+  const AIR = 0.9995;                 // air drag per physics step (less = more momentum)
+  const MAX_V = 3500;                 // vu / s  (MAX_V * STEP < BALL_R prevents tunneling: 3500/240 ≈ 14.6 < 18)
+  const OFFSCREEN_MARGIN = 100;       // vu past viewport edge before "Lost!"
+  const STEP = 1 / 240;               // physics timestep (seconds)
+  const INK_BUDGET_BASE = (VW + VH) * 0.9;   // vu of total stroke length at L.ink = 1.0
+  const SAMPLE_INTERVAL = 30;         // ms between ghost samples
+
+  // ============================================================
   // Levels
   // ============================================================
-  // Each level:
-  //   spawn:  (W,H) => {x,y}
-  //   goal:   (W,H) => {x,y,w,h}      goal y is between 0.5H and 0.95H
-  //   walls:  (W,H) => [{x,y,w,h}, ...]
-  //   ink:    multiplier on ink budget
-  //   medals: { gold, silver, bronze } in ms (lower = better)
-  // Medal targets — tightened toward what a skilled run can hit.
-  // platinum = top ~0.5% / world-class · gold = top ~2.5% · silver = top ~10% · bronze = top ~25%
-  // (We can't measure real percentiles without a backend; these are calibrated guesses.)
+  // Each level (all coordinates in virtual units):
+  //   id:     stable slug; storage keys (bestTimes/ghosts/plays) reference
+  //           this id, NOT the array index — reorder LEVELS freely without
+  //           rewriting saved records.
+  //   spawn:  {x, y}
+  //   goal:   {x, y, w, h}
+  //   walls:  [{x, y, w, h}, ...]                    axis-aligned rectangles
+  //   lines:  [{x1, y1, x2, y2, f?, r?}, ...]        optional preset line
+  //           segments (ramps, bumpers, rails). f/r override WALL_FRICTION /
+  //           WALL_RESTITUTION per surface.
+  //   ink:    multiplier on INK_BUDGET_BASE
+  //   medals: { platinum, gold, silver, bronze } in ms (lower = better)
+  // Array order = play order. Roughly easy → hard; difficulty also varies
+  // by precision required, ink budget, and routing complexity, so the
+  // progression isn't strictly monotonic on platinum time.
+  // Medal targets: platinum ≈ top 0.5% / gold ≈ top 2.5% / silver ≈ top 10%
+  // / bronze ≈ top 25%. Calibrated guesses pending real-play data.
   const LEVELS = [
+    // ---- intro (easy) ----
     // 1 — gentle intro
-    { spawn:(W,H)=>({x:W*0.18,y:H*0.18}), goal:(W,H)=>({x:W*0.70,y:H*0.85,w:W*0.20,h:18}),
-      walls:(W,H)=>[{x:W*0.32,y:H*0.45,w:W*0.26,h:14}], ink:1.0,
+    { id:'gentle-intro',
+      spawn:{x:VW*0.18,y:VH*0.18}, goal:{x:VW*0.70,y:VH*0.85,w:VW*0.20,h:18},
+      walls:[{x:VW*0.32,y:VH*0.45,w:VW*0.26,h:14}], ink:1.0,
       medals:{platinum:1200,gold:1700,silver:2400,bronze:3500} },
     // 2 — cross-screen left, mid-height goal
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.12}), goal:(W,H)=>({x:W*0.04,y:H*0.55,w:W*0.20,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.40,w:W*0.55,h:14}], ink:1.0,
+    { id:'cross-screen-left',
+      spawn:{x:VW*0.85,y:VH*0.12}, goal:{x:VW*0.04,y:VH*0.55,w:VW*0.20,h:18},
+      walls:[{x:VW*0.30,y:VH*0.40,w:VW*0.55,h:14}], ink:1.0,
       medals:{platinum:1800,gold:2400,silver:3300,bronze:5000} },
-    // 3 — narrow funnel
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.08}), goal:(W,H)=>({x:W*0.42,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.05,y:H*0.50,w:W*0.35,h:14},{x:W*0.60,y:H*0.50,w:W*0.35,h:14},{x:W*0.30,y:H*0.74,w:W*0.40,h:14}], ink:0.85,
-      medals:{platinum:1600,gold:2200,silver:3000,bronze:4500} },
-    // 4 — vertical column with gap above, goal mid-right
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.18}), goal:(W,H)=>({x:W*0.78,y:H*0.50,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.46,y:H*0.42,w:14,h:H*0.45},{x:W*0.30,y:H*0.62,w:W*0.20,h:14}], ink:0.95,
+    // 3 — vertical column with gap above, goal mid-right
+    { id:'column-gap',
+      spawn:{x:VW*0.10,y:VH*0.18}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
+      walls:[{x:VW*0.46,y:VH*0.42,w:14,h:VH*0.45},{x:VW*0.30,y:VH*0.62,w:VW*0.20,h:14}], ink:0.95,
       medals:{platinum:1700,gold:2400,silver:3400,bronze:5000} },
-    // 5 — staircase
-    { spawn:(W,H)=>({x:W*0.92,y:H*0.10}), goal:(W,H)=>({x:W*0.06,y:H*0.86,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.55,y:H*0.32,w:W*0.30,h:14},{x:W*0.35,y:H*0.50,w:W*0.30,h:14},{x:W*0.15,y:H*0.68,w:W*0.30,h:14}], ink:0.9,
+    // 4 — staircase
+    { id:'staircase',
+      spawn:{x:VW*0.92,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.86,w:VW*0.18,h:18},
+      walls:[{x:VW*0.55,y:VH*0.32,w:VW*0.30,h:14},{x:VW*0.35,y:VH*0.50,w:VW*0.30,h:14},{x:VW*0.15,y:VH*0.68,w:VW*0.30,h:14}], ink:0.9,
       medals:{platinum:2200,gold:3000,silver:4200,bronze:6500} },
-    // 6 — Π shape. Platinum 1.5s · Bronze 3.14s (π easter egg)
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.08}), goal:(W,H)=>({x:W*0.06,y:H*0.62,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.30,w:14,h:H*0.30},{x:W*0.65,y:H*0.30,w:14,h:H*0.30},{x:W*0.20,y:H*0.30,w:W*0.60,h:14}], ink:0.95,
-      medals:{platinum:1500,gold:2000,silver:2600,bronze:3140} },
-    // 7 — two stepped shelves, half-screen goal
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.78,y:H*0.50,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.20,y:H*0.30,w:W*0.55,h:14},{x:W*0.05,y:H*0.55,w:W*0.55,h:14}], ink:0.85,
+    // 5 — two stepped shelves, half-screen goal
+    { id:'stepped-shelves',
+      spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.50,w:VW*0.18,h:18},
+      walls:[{x:VW*0.20,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.05,y:VH*0.55,w:VW*0.55,h:14}], ink:0.85,
       medals:{platinum:1900,gold:2600,silver:3700,bronze:5500} },
-    // 8 — long traverse, dense scatter
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.04,y:H*0.92,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.40,y:H*0.22,w:W*0.45,h:14},{x:W*0.15,y:H*0.40,w:W*0.45,h:14},{x:W*0.55,y:H*0.58,w:W*0.30,h:14},{x:W*0.25,y:H*0.74,w:W*0.40,h:14},{x:W*0.65,y:H*0.30,w:14,h:H*0.18}], ink:0.9,
-      medals:{platinum:2800,gold:3700,silver:5200,bronze:7500} },
-    // 9 — three staggered shelves
-    { spawn:(W,H)=>({x:W*0.08,y:H*0.10}), goal:(W,H)=>({x:W*0.78,y:H*0.88,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.00,y:H*0.30,w:W*0.55,h:14},{x:W*0.45,y:H*0.50,w:W*0.55,h:14},{x:W*0.00,y:H*0.70,w:W*0.55,h:14}], ink:0.95,
-      medals:{platinum:2500,gold:3300,silver:4500,bronze:6500} },
-    // 10 — narrow goal between two pillars
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.43,y:H*0.85,w:W*0.14,h:18}),
-      walls:(W,H)=>[{x:W*0.30,y:H*0.55,w:14,h:H*0.30},{x:W*0.68,y:H*0.55,w:14,h:H*0.30},{x:W*0.10,y:H*0.35,w:W*0.30,h:14},{x:W*0.60,y:H*0.35,w:W*0.30,h:14}], ink:0.85,
-      medals:{platinum:2200,gold:3000,silver:4200,bronze:6000} },
-    // 11 — overhang ceiling, goal lower-left
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.10}), goal:(W,H)=>({x:W*0.06,y:H*0.78,w:W*0.18,h:18}),
-      walls:(W,H)=>[{x:W*0.20,y:H*0.28,w:W*0.65,h:14},{x:W*0.20,y:H*0.28,w:14,h:H*0.20},{x:W*0.30,y:H*0.55,w:W*0.40,h:14}], ink:0.95,
-      medals:{platinum:2600,gold:3500,silver:4800,bronze:7000} },
-    // 12 — half-screen goal on the right, low ink
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.08}), goal:(W,H)=>({x:W*0.80,y:H*0.55,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.25,y:H*0.30,w:W*0.50,h:14},{x:W*0.55,y:H*0.30,w:14,h:H*0.20}], ink:0.7,
-      medals:{platinum:2300,gold:3100,silver:4300,bronze:6200} },
-    // 13 — scatter maze
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.42,y:H*0.93,w:W*0.16,h:18}),
-      walls:(W,H)=>[{x:W*0.10,y:H*0.20,w:W*0.25,h:14},{x:W*0.65,y:H*0.20,w:W*0.25,h:14},{x:W*0.35,y:H*0.36,w:W*0.30,h:14},{x:W*0.05,y:H*0.52,w:W*0.30,h:14},{x:W*0.65,y:H*0.52,w:W*0.30,h:14},{x:W*0.30,y:H*0.70,w:14,h:H*0.18},{x:W*0.66,y:H*0.70,w:14,h:H*0.18}], ink:1.1,
-      medals:{platinum:3500,gold:4700,silver:6500,bronze:9500} },
-    // 14 — zigzag (4 shelves)
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.06}), goal:(W,H)=>({x:W*0.78,y:H*0.90,w:W*0.18,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.05,y:H*0.22,w:W*0.45,h:14},
-        {x:W*0.50,y:H*0.40,w:W*0.45,h:14},
-        {x:W*0.05,y:H*0.58,w:W*0.45,h:14},
-        {x:W*0.50,y:H*0.76,w:W*0.30,h:14},
+    // 6 — narrow funnel
+    { id:'narrow-funnel',
+      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[{x:VW*0.05,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.60,y:VH*0.50,w:VW*0.35,h:14},{x:VW*0.30,y:VH*0.74,w:VW*0.40,h:14}], ink:0.85,
+      medals:{platinum:1600,gold:2200,silver:3000,bronze:4500} },
+    // 7 — ramp funnel (NEW archetype: two diagonal ramps converge to a
+    // narrow exit; spawn is off-center so a redirect line is needed)
+    { id:'ramp-funnel',
+      spawn:{x:VW*0.18,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[],
+      lines:[
+        { x1:VW*0.04, y1:VH*0.40, x2:VW*0.46, y2:VH*0.78, f:0.998 },  // left ramp
+        { x1:VW*0.96, y1:VH*0.40, x2:VW*0.54, y2:VH*0.78, f:0.998 },  // right ramp
+      ], ink:0.65, medals:{platinum:1500,gold:2000,silver:2800,bronze:4000} },
+    // ---- medium ----
+    // 8 — Π shape (Platinum 1.5s · Bronze 3.14s — π easter egg; do not touch bronze)
+    { id:'pi-shape',
+      spawn:{x:VW*0.50,y:VH*0.08}, goal:{x:VW*0.06,y:VH*0.62,w:VW*0.18,h:18},
+      walls:[{x:VW*0.30,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.30},{x:VW*0.20,y:VH*0.30,w:VW*0.60,h:14}], ink:0.95,
+      medals:{platinum:1500,gold:2000,silver:2600,bronze:3140} },
+    // 9 — zigzag (4 shelves)
+    { id:'zigzag-4',
+      spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.78,y:VH*0.90,w:VW*0.18,h:18},
+      walls:[
+        {x:VW*0.05,y:VH*0.22,w:VW*0.45,h:14},
+        {x:VW*0.50,y:VH*0.40,w:VW*0.45,h:14},
+        {x:VW*0.05,y:VH*0.58,w:VW*0.45,h:14},
+        {x:VW*0.50,y:VH*0.76,w:VW*0.30,h:14},
       ], ink:0.95, medals:{platinum:1500,gold:2100,silver:3000,bronze:4500} },
-    // 15 — slot, deep goal
-    { spawn:(W,H)=>({x:W*0.85,y:H*0.07}), goal:(W,H)=>({x:W*0.45,y:H*0.93,w:W*0.10,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.30,y:H*0.40,w:W*0.40,h:14},
-        {x:W*0.30,y:H*0.40,w:14,h:H*0.50},
-        {x:W*0.70,y:H*0.40,w:14,h:H*0.50},
+    // 10 — three staggered shelves
+    { id:'staggered-shelves',
+      spawn:{x:VW*0.08,y:VH*0.10}, goal:{x:VW*0.78,y:VH*0.88,w:VW*0.18,h:18},
+      walls:[{x:VW*0.00,y:VH*0.30,w:VW*0.55,h:14},{x:VW*0.45,y:VH*0.50,w:VW*0.55,h:14},{x:VW*0.00,y:VH*0.70,w:VW*0.55,h:14}], ink:0.95,
+      medals:{platinum:2500,gold:3300,silver:4500,bronze:6500} },
+    // 11 — pinball bounce lane (NEW archetype: alternating bouncy
+    // diagonals zigzag the ball downward; r=0.65 on rails makes the
+    // lane lively)
+    { id:'pinball-lane',
+      spawn:{x:VW*0.50,y:VH*0.04}, goal:{x:VW*0.42,y:VH*0.94,w:VW*0.16,h:18},
+      walls:[],
+      lines:[
+        { x1:VW*0.18, y1:VH*0.20, x2:VW*0.58, y2:VH*0.28, r:0.65 },
+        { x1:VW*0.82, y1:VH*0.38, x2:VW*0.42, y2:VH*0.46, r:0.65 },
+        { x1:VW*0.18, y1:VH*0.56, x2:VW*0.58, y2:VH*0.64, r:0.65 },
+        { x1:VW*0.82, y1:VH*0.74, x2:VW*0.42, y2:VH*0.82, r:0.65 },
+      ], ink:0.6, medals:{platinum:2400,gold:3100,silver:4300,bronze:6000} },
+    // ---- medium-hard ----
+    // 12 — overhang ceiling, goal lower-left
+    { id:'ceiling-overhang',
+      spawn:{x:VW*0.85,y:VH*0.10}, goal:{x:VW*0.06,y:VH*0.78,w:VW*0.18,h:18},
+      walls:[{x:VW*0.20,y:VH*0.28,w:VW*0.65,h:14},{x:VW*0.20,y:VH*0.28,w:14,h:VH*0.20},{x:VW*0.30,y:VH*0.55,w:VW*0.40,h:14}], ink:0.95,
+      medals:{platinum:2600,gold:3500,silver:4800,bronze:7000} },
+    // 13 — slot, deep goal
+    { id:'slot-deep',
+      spawn:{x:VW*0.85,y:VH*0.07}, goal:{x:VW*0.45,y:VH*0.93,w:VW*0.10,h:18},
+      walls:[
+        {x:VW*0.30,y:VH*0.40,w:VW*0.40,h:14},
+        {x:VW*0.30,y:VH*0.40,w:14,h:VH*0.50},
+        {x:VW*0.70,y:VH*0.40,w:14,h:VH*0.50},
       ], ink:0.85, medals:{platinum:2000,gold:2700,silver:3800,bronze:5500} },
-    // 16 — pillars + overhang
-    { spawn:(W,H)=>({x:W*0.10,y:H*0.06}), goal:(W,H)=>({x:W*0.80,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.25,y:H*0.20,w:W*0.50,h:14},
-        {x:W*0.25,y:H*0.20,w:14,h:H*0.20},
-        {x:W*0.40,y:H*0.50,w:14,h:H*0.30},
-        {x:W*0.65,y:H*0.50,w:14,h:H*0.30},
-        {x:W*0.40,y:H*0.78,w:W*0.40,h:14},
-      ], ink:1.0, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
-    // 17 — long horizontal traverse, half-screen goal
-    { spawn:(W,H)=>({x:W*0.05,y:H*0.06}), goal:(W,H)=>({x:W*0.82,y:H*0.50,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.10,y:H*0.30,w:W*0.65,h:14},
-        {x:W*0.30,y:H*0.55,w:W*0.50,h:14},
-        {x:W*0.75,y:H*0.30,w:14,h:H*0.20},
+    // 14 — narrow drop slot (NEW archetype: shoulders funnel the ball
+    // into a tight vertical slot with a small goal at the bottom)
+    { id:'narrow-drop-slot',
+      spawn:{x:VW*0.50,y:VH*0.04}, goal:{x:VW*0.46,y:VH*0.93,w:VW*0.08,h:18},
+      walls:[
+        {x:VW*0.05,y:VH*0.20,w:VW*0.35,h:14},          // left shoulder
+        {x:VW*0.60,y:VH*0.20,w:VW*0.35,h:14},          // right shoulder
+        {x:VW*0.40,y:VH*0.28,w:14,h:VH*0.60},          // left slot wall
+        {x:VW*0.58,y:VH*0.28,w:14,h:VH*0.60},          // right slot wall
+      ], ink:0.5, medals:{platinum:2200,gold:2900,silver:4000,bronze:5500} },
+    // 15 — narrow goal between two pillars
+    { id:'narrow-goal-pillars',
+      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.43,y:VH*0.85,w:VW*0.14,h:18},
+      walls:[{x:VW*0.30,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.68,y:VH*0.55,w:14,h:VH*0.30},{x:VW*0.10,y:VH*0.35,w:VW*0.30,h:14},{x:VW*0.60,y:VH*0.35,w:VW*0.30,h:14}], ink:0.85,
+      medals:{platinum:2200,gold:3000,silver:4200,bronze:6000} },
+    // 16 — half-screen goal on the right, low ink
+    { id:'low-ink-right',
+      spawn:{x:VW*0.10,y:VH*0.08}, goal:{x:VW*0.80,y:VH*0.55,w:VW*0.16,h:18},
+      walls:[{x:VW*0.25,y:VH*0.30,w:VW*0.50,h:14},{x:VW*0.55,y:VH*0.30,w:14,h:VH*0.20}], ink:0.7,
+      medals:{platinum:2300,gold:3100,silver:4300,bronze:6200} },
+    // ---- hard ----
+    // 17 — long traverse, dense scatter
+    { id:'dense-scatter',
+      spawn:{x:VW*0.50,y:VH*0.06}, goal:{x:VW*0.04,y:VH*0.92,w:VW*0.18,h:18},
+      walls:[{x:VW*0.40,y:VH*0.22,w:VW*0.45,h:14},{x:VW*0.15,y:VH*0.40,w:VW*0.45,h:14},{x:VW*0.55,y:VH*0.58,w:VW*0.30,h:14},{x:VW*0.25,y:VH*0.74,w:VW*0.40,h:14},{x:VW*0.65,y:VH*0.30,w:14,h:VH*0.18}], ink:0.9,
+      medals:{platinum:2800,gold:3700,silver:5200,bronze:7500} },
+    // 18 — long horizontal traverse, half-screen goal
+    { id:'horizontal-traverse',
+      spawn:{x:VW*0.05,y:VH*0.06}, goal:{x:VW*0.82,y:VH*0.50,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.10,y:VH*0.30,w:VW*0.65,h:14},
+        {x:VW*0.30,y:VH*0.55,w:VW*0.50,h:14},
+        {x:VW*0.75,y:VH*0.30,w:14,h:VH*0.20},
       ], ink:0.85, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
-    // 18 — master maze
-    { spawn:(W,H)=>({x:W*0.50,y:H*0.05}), goal:(W,H)=>({x:W*0.05,y:H*0.92,w:W*0.16,h:18}),
-      walls:(W,H)=>[
-        {x:W*0.20,y:H*0.18,w:W*0.30,h:14},
-        {x:W*0.55,y:H*0.18,w:W*0.30,h:14},
-        {x:W*0.10,y:H*0.34,w:W*0.40,h:14},
-        {x:W*0.55,y:H*0.34,w:W*0.30,h:14},
-        {x:W*0.30,y:H*0.50,w:W*0.30,h:14},
-        {x:W*0.10,y:H*0.66,w:W*0.30,h:14},
-        {x:W*0.50,y:H*0.66,w:W*0.40,h:14},
-        {x:W*0.30,y:H*0.82,w:W*0.40,h:14},
-        {x:W*0.20,y:H*0.50,w:14,h:H*0.16},
+    // 19 — pillars + overhang
+    { id:'pillars-overhang',
+      spawn:{x:VW*0.10,y:VH*0.06}, goal:{x:VW*0.80,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.25,y:VH*0.20,w:VW*0.50,h:14},
+        {x:VW*0.25,y:VH*0.20,w:14,h:VH*0.20},
+        {x:VW*0.40,y:VH*0.50,w:14,h:VH*0.30},
+        {x:VW*0.65,y:VH*0.50,w:14,h:VH*0.30},
+        {x:VW*0.40,y:VH*0.78,w:VW*0.40,h:14},
+      ], ink:1.0, medals:{platinum:3000,gold:4000,silver:5500,bronze:8000} },
+    // 20 — scatter maze
+    { id:'scatter-maze',
+      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.42,y:VH*0.93,w:VW*0.16,h:18},
+      walls:[{x:VW*0.10,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.65,y:VH*0.20,w:VW*0.25,h:14},{x:VW*0.35,y:VH*0.36,w:VW*0.30,h:14},{x:VW*0.05,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.65,y:VH*0.52,w:VW*0.30,h:14},{x:VW*0.30,y:VH*0.70,w:14,h:VH*0.18},{x:VW*0.66,y:VH*0.70,w:14,h:VH*0.18}], ink:1.1,
+      medals:{platinum:3500,gold:4700,silver:6500,bronze:9500} },
+    // 21 — master maze
+    { id:'master-maze',
+      spawn:{x:VW*0.50,y:VH*0.05}, goal:{x:VW*0.05,y:VH*0.92,w:VW*0.16,h:18},
+      walls:[
+        {x:VW*0.20,y:VH*0.18,w:VW*0.30,h:14},
+        {x:VW*0.55,y:VH*0.18,w:VW*0.30,h:14},
+        {x:VW*0.10,y:VH*0.34,w:VW*0.40,h:14},
+        {x:VW*0.55,y:VH*0.34,w:VW*0.30,h:14},
+        {x:VW*0.30,y:VH*0.50,w:VW*0.30,h:14},
+        {x:VW*0.10,y:VH*0.66,w:VW*0.30,h:14},
+        {x:VW*0.50,y:VH*0.66,w:VW*0.40,h:14},
+        {x:VW*0.30,y:VH*0.82,w:VW*0.40,h:14},
+        {x:VW*0.20,y:VH*0.50,w:14,h:VH*0.16},
       ], ink:1.05, medals:{platinum:4500,gold:6000,silver:8500,bronze:13000} },
   ];
+
+  // Reverse lookup: id -> array index. Built once at load.
+  const LEVEL_INDEX_BY_ID = Object.fromEntries(LEVELS.map((L, i) => [L.id, i]));
 
   // ============================================================
   // Persistent storage
   // ============================================================
-  const STORAGE_KEY = 'timeball.bestTimes.v3';
-  const GHOST_KEY   = 'timeball.ghosts.v3';
-  const SETTINGS_KEY= 'timeball.settings.v3';
-  const PROGRESS_KEY= 'timeball.progress.v3';
-  const PLAYS_KEY   = 'timeball.plays.v3';
-  let bestTimes = {};
-  let ghosts    = {};
-  let settings  = { showGhost: true, autoReset: true };
-  let progress  = { currentLevel: 0 };
-  let plays     = {};   // { idx: count } — counts each completed run
-  try { bestTimes = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch {}
-  try { ghosts    = JSON.parse(localStorage.getItem(GHOST_KEY)   || '{}'); } catch {}
-  try { settings  = Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
-  try { progress  = Object.assign(progress, JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}')); } catch {}
-  try { plays     = JSON.parse(localStorage.getItem(PLAYS_KEY)   || '{}'); } catch {}
+  // All per-circuit maps (bestTimes, ghosts, plays) are keyed by the level
+  // `id` slug, not by array index. progress.currentLevel is an id string.
+  // Version suffixes bump on schema changes; on load we migrate the prior
+  // schema (index-keyed) into the current shape so existing players don't
+  // lose their records.
+  const STORAGE_KEY  = 'timeball.bestTimes.v4';  // v4: id-keyed (vs v3 index-keyed)
+  const GHOST_KEY    = 'timeball.ghosts.v5';     // v5: id-keyed (vs v4 index-keyed, virtual coords)
+  const SETTINGS_KEY = 'timeball.settings.v3';   // unchanged
+  const PROGRESS_KEY = 'timeball.progress.v4';   // v4: currentLevel is id string (vs v3 numeric)
+  const PLAYS_KEY    = 'timeball.plays.v4';      // v4: id-keyed (vs v3 index-keyed)
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-  const saveBest     = () => save(STORAGE_KEY, bestTimes);
-  const saveGhosts   = () => save(GHOST_KEY,   ghosts);
-  const saveSettings = () => save(SETTINGS_KEY,settings);
-  const saveProgress = () => save(PROGRESS_KEY,progress);
-  const savePlays    = () => save(PLAYS_KEY,   plays);
+
+  // Load an id-keyed map. If the current-version key is absent, try the
+  // previous index-keyed key and rewrite numeric keys -> level ids via
+  // LEVELS array position at this moment. This is one-shot: subsequent
+  // saves only touch the new key.
+  function loadKeyedMap(newKey, oldKey) {
+    try {
+      const cur = JSON.parse(localStorage.getItem(newKey) || 'null');
+      if (cur && typeof cur === 'object') return cur;
+    } catch {}
+    let old = null;
+    try { old = JSON.parse(localStorage.getItem(oldKey) || 'null'); } catch {}
+    if (!old || typeof old !== 'object') return {};
+    const out = {};
+    for (const k of Object.keys(old)) {
+      const i = Number(k);
+      if (Number.isInteger(i) && i >= 0 && i < LEVELS.length) {
+        out[LEVELS[i].id] = old[k];
+      }
+    }
+    save(newKey, out);
+    return out;
+  }
+  function loadProgress() {
+    try {
+      const cur = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null');
+      if (cur && typeof cur.currentLevel === 'string') return cur;
+    } catch {}
+    // Migrate from v3 (numeric currentLevel) if present.
+    let old = null;
+    try { old = JSON.parse(localStorage.getItem('timeball.progress.v3') || 'null'); } catch {}
+    const out = { currentLevel: LEVELS[0].id };
+    if (old && typeof old.currentLevel === 'number') {
+      const i = old.currentLevel;
+      if (i >= 0 && i < LEVELS.length) out.currentLevel = LEVELS[i].id;
+    }
+    save(PROGRESS_KEY, out);
+    return out;
+  }
+
+  let bestTimes = loadKeyedMap(STORAGE_KEY,  'timeball.bestTimes.v3');
+  let ghosts    = loadKeyedMap(GHOST_KEY,    'timeball.ghosts.v4');
+  let plays     = loadKeyedMap(PLAYS_KEY,    'timeball.plays.v3');
+  let settings  = { showGhost: true, autoReset: true };
+  let progress  = loadProgress();
+  try { settings = Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
+  const saveBest     = () => save(STORAGE_KEY,  bestTimes);
+  const saveGhosts   = () => save(GHOST_KEY,    ghosts);
+  const saveSettings = () => save(SETTINGS_KEY, settings);
+  const saveProgress = () => save(PROGRESS_KEY, progress);
+  const savePlays    = () => save(PLAYS_KEY,    plays);
 
   // ============================================================
   // Helpers
@@ -646,6 +901,15 @@
   function levelMedals(idx) {
     return LEVELS[idx].medals;
   }
+  // 'ramp-funnel' -> 'Ramp Funnel'. Drives the level intro card and share
+  // text so circuits read by name, not by slug or array position.
+  function humanizeLevelName(id) {
+    return id.split('-').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+  }
+  // Where the hosted game lives. Empty string is fine — share-text logic
+  // omits the trailing URL line when this is blank. Update after Pages is
+  // enabled.
+  const GAME_URL = 'https://amsrgj.github.io/Time-Ball/';
   // Time-based medals. The platinum threshold per level represents the current
   // world record — beating it earns platinum. Gold / silver / bronze layer
   // below. (No real backend yet, so the world record is the developer-set
@@ -662,9 +926,19 @@
   function medalGlyph(m) {
     return m === 'platinum' ? '★' : (m ? '●' : '○');
   }
-  function hasPlatinum(levelIdx) {
-    const t = bestTimes[levelIdx];
-    return t != null && t <= levelMedals(levelIdx).platinum;
+  // ---- Per-level storage accessors (id-keyed under the hood) ----
+  // Use these everywhere instead of bestTimes[idx] / ghosts[idx] / plays[idx]
+  // so the rest of the code stays index-friendly while storage stays
+  // id-keyed. Records, medal, and completion are all derived from
+  // bestTimes[id]; there's no separate "completed" flag to drift.
+  function bestTimeOf(idx) { return bestTimes[LEVELS[idx].id]; }
+  function ghostOf(idx)    { return ghosts[LEVELS[idx].id]; }
+  function playsOf(idx)    { return plays[LEVELS[idx].id] || 0; }
+  function medalOf(idx)    { return medalFor(idx, bestTimeOf(idx)); }
+  function isCompleted(idx){ return bestTimeOf(idx) != null; }
+  function hasPlatinum(idx) {
+    const t = bestTimeOf(idx);
+    return t != null && t <= levelMedals(idx).platinum;
   }
 
   // ============================================================
@@ -679,7 +953,7 @@
       el.classList.toggle('active', active);
       el.classList.toggle('fade-in', active);
     });
-    if (name !== 'game') hideTrophy();
+    if (name !== 'game') { hideTrophy(); cancelCountdown(); cancelLevelIntro(); }
     if (name === 'menu')     startMenuDemo(); else stopMenuDemo();
     if (name === 'circuits') renderCircuits();
     if (name === 'records')  renderRecords();
@@ -725,6 +999,7 @@
     menuDemo = {
       w, h,
       ball: { x: w * 0.92, y: -10, vx: 0, vy: 0, r: 7 },
+      trail: [],   // rolling list of recent ball positions for the fading motion blur
       line: DEMO_LINE_NORM.map(p => ({ x: p.x * w, y: p.y * h })),
       walls: [
         { x: w * 0.20, y: h * 0.72, w: w * 0.32, h: 5 },
@@ -734,6 +1009,7 @@
       holdUntil: 0,
     };
   }
+  const MENU_TRAIL_LEN = 10;
   function* demoSegments(s) {
     for (let i = 1; i < s.line.length; i++) {
       yield { x1: s.line[i-1].x, y1: s.line[i-1].y, x2: s.line[i].x, y2: s.line[i].y };
@@ -786,6 +1062,10 @@
       }
       acc -= h;
     }
+    // Trail: keep a rolling tail of recent ball positions for the motion-
+    // blur effect in drawMenuDemo. Drop the oldest when over capacity.
+    s.trail.push({ x: ball.x, y: ball.y });
+    if (s.trail.length > MENU_TRAIL_LEN) s.trail.shift();
     // Goal check
     const inX = ball.x > s.goal.x && ball.x < s.goal.x + s.goal.w;
     const inY = ball.y + ball.r > s.goal.y;
@@ -839,6 +1119,17 @@
     menuCtx.lineTo(s.goal.x + s.goal.w/2,      s.goal.y - 10);
     menuCtx.closePath();
     menuCtx.fill();
+    // Trail (fading motion blur — drawn first so the ball overlaps it).
+    menuCtx.fillStyle = '#7fb3ff';
+    for (let i = 0; i < s.trail.length; i++) {
+      const p = s.trail[i];
+      const f = (i + 1) / s.trail.length;        // 0..1 along the trail
+      menuCtx.globalAlpha = f * 0.35;
+      menuCtx.beginPath();
+      menuCtx.arc(p.x, p.y, s.ball.r * (0.4 + 0.6 * f), 0, Math.PI * 2);
+      menuCtx.fill();
+    }
+    menuCtx.globalAlpha = 1;
     // Ball
     if (s.ball.y > -s.ball.r && s.ball.y < s.h + s.ball.r) {
       menuCtx.shadowColor = 'rgba(160, 220, 255, 0.5)';
@@ -884,8 +1175,8 @@
     const grid = document.getElementById('circuit-grid');
     grid.innerHTML = '';
     LEVELS.forEach((L, i) => {
-      const t = bestTimes[i];
-      const med = medalFor(i, t);
+      const t = bestTimeOf(i);
+      const med = medalOf(i);
       const card = document.createElement('button');
       card.className = 'circuit-card';
       const medalClass = med ? 'medal-' + med : 'medal-none';
@@ -897,9 +1188,7 @@
         <div class="time">${t != null ? fmtTime(t) : '—'}</div>
       `;
       card.addEventListener('click', () => {
-        levelIdx = i;
-        progress.currentLevel = i;
-        saveProgress();
+        gotoLevel(i);
         showScreen('game');
       });
       grid.appendChild(card);
@@ -913,8 +1202,8 @@
     const list = document.getElementById('records-list');
     list.innerHTML = '';
     LEVELS.forEach((L, i) => {
-      const t = bestTimes[i];
-      const med = medalFor(i, t);
+      const t = bestTimeOf(i);
+      const med = medalOf(i);
       const row = document.createElement('div');
       row.className = 'records-row';
       const medalClass = med ? 'medal-' + med : 'medal-none';
@@ -934,8 +1223,7 @@
   function trophyTotals() {
     const totals = { platinum: 0, gold: 0, silver: 0, bronze: 0 };
     for (let i = 0; i < LEVELS.length; i++) {
-      const t = bestTimes[i];
-      const m = medalFor(i, t);
+      const m = medalOf(i);
       if (m && totals[m] != null) totals[m]++;
     }
     return totals;
@@ -962,7 +1250,7 @@
   function favoriteTrack() {
     let best = -1, bestN = 0;
     for (let i = 0; i < LEVELS.length; i++) {
-      const n = plays[i] || 0;
+      const n = playsOf(i);
       if (n > bestN) { bestN = n; best = i; }
     }
     return { idx: best, count: bestN };
@@ -974,17 +1262,22 @@
     document.getElementById('stat-silver').textContent = t.silver;
     document.getElementById('stat-bronze').textContent = t.bronze;
 
-    const completed = Object.keys(bestTimes).filter(k => bestTimes[k] != null).length;
+    // Count completed circuits via the index API so we never include
+    // stale ids left in storage from removed levels.
+    let completed = 0;
+    for (let i = 0; i < LEVELS.length; i++) if (isCompleted(i)) completed++;
     document.getElementById('stat-completed').textContent = `${completed} / ${LEVELS.length}`;
 
-    const totalRuns = Object.values(plays).reduce((a,b) => a + (b||0), 0);
+    let totalRuns = 0;
+    for (let i = 0; i < LEVELS.length; i++) totalRuns += playsOf(i);
     document.getElementById('stat-runs').textContent = totalRuns;
 
     const fav = favoriteTrack();
     document.getElementById('stat-favorite').textContent =
       fav.idx >= 0 ? `Circuit ${fav.idx + 1}  (${fav.count})` : '—';
 
-    const totalBestMs = Object.values(bestTimes).reduce((a,b) => a + (b||0), 0);
+    let totalBestMs = 0;
+    for (let i = 0; i < LEVELS.length; i++) totalBestMs += bestTimeOf(i) || 0;
     document.getElementById('stat-totaltime').textContent = totalBestMs > 0 ? fmtTime(totalBestMs) : '—';
 
     const r = rankFromTrophies(t);
@@ -1028,24 +1321,33 @@
   const btnPlay = document.getElementById('btn-play');
   const btnTool = document.getElementById('btn-tool');
 
-  let W = 0, H = 0, DPR = 1;
+  // Screen-space size of the canvas (CSS px), and the virtual->screen
+  // viewport transform recomputed on every resize.
+  let screenW = 0, screenH = 0, DPR = 1;
+  let viewScale = 1, viewOffX = 0, viewOffY = 0;
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 3);
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (ball) rebuildLevel({ keepStrokes: true });
+    screenW = window.innerWidth;
+    screenH = window.innerHeight;
+    canvas.width = screenW * DPR;
+    canvas.height = screenH * DPR;
+    canvas.style.width = screenW + 'px';
+    canvas.style.height = screenH + 'px';
+    // Fit virtual world inside the screen, preserving aspect (letterbox/pillarbox).
+    viewScale = Math.min(screenW / VW, screenH / VH);
+    viewOffX = (screenW - VW * viewScale) / 2;
+    viewOffY = (screenH - VH * viewScale) / 2;
   }
   window.addEventListener('resize', resize);
 
-  let levelIdx = progress.currentLevel || 0;
-  if (levelIdx >= LEVELS.length) levelIdx = 0;
+  // Current level index — single source of truth for navigation. Every
+  // entry point (Circuits card, Play, Next button, trophy Next, boot)
+  // flows through gotoLevel/nextLevel below, so the in-memory state,
+  // persisted progress, HUD labels, and rebuilt physics geometry can
+  // never disagree.
+  let levelIdx = 0;
 
-  let ball, goal, walls = [];
+  let ball, goal, walls = [], rails = [];
   let strokes = [];
   let currentStroke = null;
   let inkLeft = 1, inkMax = 1;
@@ -1055,26 +1357,23 @@
   let lostUntil = 0;
   let tool = 'draw'; // 'draw' | 'erase'
 
-  // Recording / ghost
+  // Recording / ghost (samples are [simTimeMs, virtX, virtY])
   let recording = [];
   let lastSampleAt = -Infinity;
-  const SAMPLE_INTERVAL = 30;
 
-  // Timer
-  let timerAccum = 0;
-  let timerStartedAt = null;
-  function timerMs() { return timerStartedAt == null ? timerAccum : timerAccum + (performance.now() - timerStartedAt); }
-  function timerStart() { if (timerStartedAt == null) timerStartedAt = performance.now(); }
-  function timerStop() { if (timerStartedAt != null) { timerAccum += performance.now() - timerStartedAt; timerStartedAt = null; } }
-  function timerReset() { timerAccum = 0; timerStartedAt = null; }
+  // Deterministic sim clock — only advances during physics steps, so the
+  // timer is independent of FPS and never drifts from physics state.
+  let simTimeMs = 0;
+  let physicsAcc = 0;
+  function timerMs() { return simTimeMs; }
+  function timerReset() { simTimeMs = 0; physicsAcc = 0; }
 
-  function inkPixelBudget() { return (W + H) * 0.9; }
   function refreshInkUI() {
     const pct = Math.max(0, Math.min(1, inkLeft / inkMax));
     inkEl.textContent = Math.round(pct * 100) + '%';
   }
   function refreshBestUI() {
-    const best = bestTimes[levelIdx];
+    const best = bestTimeOf(levelIdx);
     bestEl.textContent = best != null ? fmtTime(best) : '—';
   }
 
@@ -1085,19 +1384,17 @@
   const tgtBronze = document.querySelector('.target.bronze');
 
   function refreshTargetsRibbon() {
+    // All four official tier times are visible before/during every run.
+    // The platinum row is the official world-record placeholder (no
+    // backend yet — see getGlobalRank).
     const m = levelMedals(levelIdx);
+    tgtPlat.querySelector('span').textContent   = fmtTime(m.platinum);
     tgtGold.querySelector('span').textContent   = fmtTime(m.gold);
     tgtSilver.querySelector('span').textContent = fmtTime(m.silver);
     tgtBronze.querySelector('span').textContent = fmtTime(m.bronze);
-    if (hasPlatinum(levelIdx)) {
-      tgtPlat.classList.remove('hidden');
-      tgtPlat.querySelector('span').textContent = fmtTime(m.platinum);
-    } else {
-      tgtPlat.classList.add('hidden');
-    }
   }
   function updateTargetsLit() {
-    const t = won ? bestTimes[levelIdx] : timerMs();
+    const t = won ? bestTimeOf(levelIdx) : timerMs();
     const m = levelMedals(levelIdx);
     // "lit" = still on track for this tier (current/final time <= threshold).
     // "beat" = the final time exceeded this tier (only after winning, to fade
@@ -1116,18 +1413,16 @@
 
   function rebuildLevel(opts = {}) {
     const L = LEVELS[levelIdx];
-    const sp = L.spawn(W, H);
-    ball = { x: sp.x, y: sp.y, vx: 0, vy: 0, r: 14 };
-    goal = L.goal(W, H);
-    walls = L.walls(W, H);
+    ball = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, r: BALL_R };
+    goal = { ...L.goal };
+    walls = L.walls.map(w => ({ ...w }));
+    rails = L.lines ? L.lines.map(l => ({ ...l })) : [];
     if (!opts.keepStrokes) {
       strokes = [];
-      inkMax = inkPixelBudget() * L.ink;
+      inkMax = INK_BUDGET_BASE * L.ink;
       inkLeft = inkMax;
     } else {
-      // Re-scale stroke points relative to new W/H?  Strokes are in absolute px;
-      // resize keeps them as drawn — close enough for a quick orientation tweak.
-      inkMax = inkPixelBudget() * L.ink;
+      inkMax = INK_BUDGET_BASE * L.ink;
     }
     won = false;
     lost = false;
@@ -1135,26 +1430,120 @@
     timerReset();
     recording = [];
     lastSampleAt = -Infinity;
+    cancelCountdown();
     updatePlayButton();
     levelEl.textContent = String(levelIdx + 1);
     refreshInkUI();
     refreshBestUI();
     refreshTargetsRibbon();
+    showLevelIntro();
   }
 
   function repeatAttempt() {
     // Keep strokes; reset ball + timer.
     const L = LEVELS[levelIdx];
-    const sp = L.spawn(W, H);
-    ball = { x: sp.x, y: sp.y, vx: 0, vy: 0, r: 14 };
+    ball = { x: L.spawn.x, y: L.spawn.y, vx: 0, vy: 0, r: BALL_R };
     won = false;
     lost = false;
     paused = true;
     timerReset();
     recording = [];
     lastSampleAt = -Infinity;
+    cancelCountdown();
     updatePlayButton();
   }
+
+  // ---- Level intro card (auto-fades) ----
+  // Shown once when entering a circuit. Non-blocking — the player can
+  // already see walls/strokes/HUD underneath and start drawing.
+  const introEl    = document.getElementById('level-intro');
+  const introNum   = document.getElementById('intro-num');
+  const introTotal = document.getElementById('intro-total');
+  const introTitle = document.getElementById('intro-title');
+  let introTimer = null;
+  function showLevelIntro() {
+    // Skip when the game screen isn't visible (e.g., during boot's
+    // initial rebuildLevel). The intro is purely a visual flourish, so
+    // there's nothing to do if no one's looking.
+    if (!document.getElementById('screen-game').classList.contains('active')) return;
+    if (introTimer) clearTimeout(introTimer);
+    introNum.textContent   = String(levelIdx + 1);
+    introTotal.textContent = String(LEVELS.length);
+    introTitle.textContent = humanizeLevelName(LEVELS[levelIdx].id);
+    introEl.classList.remove('hidden');
+    // Restart CSS animation by re-flowing the node.
+    introEl.style.animation = 'none'; void introEl.offsetWidth; introEl.style.animation = '';
+    // The CSS animation handles the fade-out; we hide the node after to
+    // free pointer-events (already 'none', but also keeps DOM tidy).
+    introTimer = setTimeout(() => { introEl.classList.add('hidden'); introTimer = null; }, 1800);
+  }
+  function cancelLevelIntro() {
+    if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+    introEl.classList.add('hidden');
+  }
+
+  // ---- 3-2-1-GO countdown (only when starting from a fresh attempt) ----
+  // Runs after Play press when timerMs() === 0; suppressed when resuming
+  // from a mid-run pause so retry loops stay tight. Cancels on level
+  // change, reset, repeat, or leaving the game screen.
+  const countdownEl = document.getElementById('countdown');
+  let countdownActive = false;
+  let countdownTimer = null;
+  const COUNTDOWN_STEPS = [
+    { text: '3',  cls: '',   dur: 580 },
+    { text: '2',  cls: '',   dur: 580 },
+    { text: '1',  cls: '',   dur: 580 },
+    { text: 'GO', cls: 'go', dur: 360 },
+  ];
+  function startCountdown(onComplete) {
+    cancelCountdown();
+    countdownActive = true;
+    let i = 0;
+    const tick = () => {
+      if (!countdownActive) return;
+      if (i >= COUNTDOWN_STEPS.length) {
+        countdownEl.classList.add('hidden');
+        countdownActive = false;
+        countdownTimer = null;
+        onComplete();
+        return;
+      }
+      const s = COUNTDOWN_STEPS[i++];
+      countdownEl.textContent = s.text;
+      countdownEl.className = 'countdown ' + s.cls;
+      // Restart the keyframe so each tick plays its own scale-in.
+      countdownEl.style.animation = 'none';
+      void countdownEl.offsetWidth;
+      countdownEl.style.animation = '';
+      countdownTimer = setTimeout(tick, s.dur);
+    };
+    tick();
+  }
+  function cancelCountdown() {
+    if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
+    countdownActive = false;
+    countdownEl.classList.add('hidden');
+  }
+
+  // ---- Level navigation (single entry point for all flows) ----
+  // Validates the index, persists progress, and rebuilds geometry so the
+  // HUD, physics, strokes, and records lookup always reference the same
+  // LEVELS[levelIdx]. Tapping the current level in Circuits is a no-op
+  // (preserves in-progress strokes); any other change rebuilds the level.
+  function gotoLevel(idx) {
+    if (typeof idx !== 'number' || !isFinite(idx)) idx = 0;
+    const n = LEVELS.length;
+    idx = ((Math.floor(idx) % n) + n) % n;
+    if (idx === levelIdx && ball) return;
+    levelIdx = idx;
+    const id = LEVELS[idx].id;
+    if (progress.currentLevel !== id) {
+      progress.currentLevel = id;
+      saveProgress();
+    }
+    rebuildLevel();
+  }
+  function nextLevel() { gotoLevel(levelIdx + 1); }
 
   function updatePlayButton() {
     btnPlay.textContent = paused ? '▶ Play' : '⏸ Pause';
@@ -1170,26 +1559,31 @@
   }
 
   function resumeGameScreen() {
-    if (!ball) rebuildLevel();
     refreshBestUI();
     refreshTargetsRibbon();
     levelEl.textContent = String(levelIdx + 1);
     refreshInkUI();
     updatePlayButton();
     updateToolButton();
+    // Re-show the intro card only when the player is entering at the
+    // start of an attempt — mid-attempt menu trips back into the game
+    // shouldn't flash the title over an in-progress run.
+    if (!won && !lost && timerMs() < 50) showLevelIntro();
   }
 
-  // ---- Input ----
+  // ---- Input (pointer events arrive in screen px; convert to virtual) ----
   function pointerPos(e) {
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    return { x: (sx - viewOffX) / viewScale, y: (sy - viewOffY) / viewScale };
   }
   function distPointSeg(px, py, ax, ay, bx, by) {
     const c = closestOnSeg(px, py, ax, ay, bx, by);
     return Math.hypot(px - c.x, py - c.y);
   }
   function tryEraseAt(p) {
-    const ER = 18;
+    const ER = 28;   // virtual units — radius around eraser pointer
     let removed = false;
     for (let i = strokes.length - 1; i >= 0; i--) {
       const s = strokes[i];
@@ -1229,7 +1623,7 @@
     const last = currentStroke.points[currentStroke.points.length - 1];
     const dx = p.x - last.x, dy = p.y - last.y;
     const d = Math.hypot(dx, dy);
-    if (d < 3) return;
+    if (d < 5) return;   // min segment length in virtual units
     if (inkLeft - d <= 0) {
       const t = inkLeft / d;
       currentStroke.points.push({ x: last.x + dx * t, y: last.y + dy * t });
@@ -1263,15 +1657,25 @@
   });
   btnPlay.addEventListener('click', () => {
     if (won || lost) { repeatAttempt(); return; }
-    paused = !paused;
+    if (countdownActive) return;     // ignore re-presses mid-countdown
     if (paused) {
-      timerStop();
+      // Fresh attempt: pre-roll a 3-2-1-GO countdown for anticipation.
+      // Mid-run resume from pause skips it so retry loops stay tight.
+      cancelLevelIntro();
+      if (timerMs() < 50) {
+        startCountdown(() => {
+          paused = false;
+          startVideoCapture();
+          updatePlayButton();
+        });
+      } else {
+        paused = false;
+        updatePlayButton();
+      }
     } else {
-      timerStart();
-      // Begin video capture only when (re)starting from a fresh attempt.
-      if (timerMs() < 50) startVideoCapture();
+      paused = true;
+      updatePlayButton();
     }
-    updatePlayButton();
   });
   document.getElementById('btn-repeat').addEventListener('click', () => {
     repeatAttempt();
@@ -1279,32 +1683,39 @@
   document.getElementById('btn-reset').addEventListener('click', () => {
     rebuildLevel();
   });
-  document.getElementById('btn-next').addEventListener('click', () => {
-    levelIdx = (levelIdx + 1) % LEVELS.length;
-    progress.currentLevel = levelIdx; saveProgress();
-    rebuildLevel();
-  });
+  document.getElementById('btn-next').addEventListener('click', nextLevel);
 
-  // ---- Physics ----
-  const GRAV = 1400, RESTITUTION = 0.35, FRICTION = 0.985, AIR = 0.999, MAX_V = 2400;
-  const OFFSCREEN_MARGIN = 80;
-
+  // ---- Physics (all in virtual units, see virtual-coords block above) ----
   function clampV() {
     const sp = Math.hypot(ball.vx, ball.vy);
     if (sp > MAX_V) { ball.vx = ball.vx / sp * MAX_V; ball.vy = ball.vy / sp * MAX_V; }
   }
   function* segments() {
+    // Each segment carries the friction (f) and restitution (r) for its
+    // source surface, so resolveCollisions can apply per-surface response
+    // without branching on type.
+    const wf = WALL_FRICTION, wr = WALL_RESTITUTION;
     for (const w of walls) {
-      yield { x1: w.x, y1: w.y, x2: w.x + w.w, y2: w.y };
-      yield { x1: w.x + w.w, y1: w.y, x2: w.x + w.w, y2: w.y + w.h };
-      yield { x1: w.x, y1: w.y + w.h, x2: w.x + w.w, y2: w.y + w.h };
-      yield { x1: w.x, y1: w.y, x2: w.x, y2: w.y + w.h };
+      yield { x1: w.x,         y1: w.y,         x2: w.x + w.w, y2: w.y,         f: wf, r: wr };
+      yield { x1: w.x + w.w,   y1: w.y,         x2: w.x + w.w, y2: w.y + w.h,   f: wf, r: wr };
+      yield { x1: w.x,         y1: w.y + w.h,   x2: w.x + w.w, y2: w.y + w.h,   f: wf, r: wr };
+      yield { x1: w.x,         y1: w.y,         x2: w.x,       y2: w.y + w.h,   f: wf, r: wr };
     }
+    const sf = STROKE_FRICTION, sr = STROKE_RESTITUTION;
     for (const s of strokes) {
       const pts = s.points;
       for (let i = 1; i < pts.length; i++) {
-        yield { x1: pts[i-1].x, y1: pts[i-1].y, x2: pts[i].x, y2: pts[i].y };
+        yield { x1: pts[i-1].x, y1: pts[i-1].y, x2: pts[i].x, y2: pts[i].y, f: sf, r: sr };
       }
+    }
+    // Preset rails (level-defined line obstacles — ramps, bumpers). Each
+    // rail can override f/r per surface; defaults to wall coefficients.
+    for (const L of rails) {
+      yield {
+        x1: L.x1, y1: L.y1, x2: L.x2, y2: L.y2,
+        f: L.f != null ? L.f : WALL_FRICTION,
+        r: L.r != null ? L.r : WALL_RESTITUTION,
+      };
     }
   }
   function closestOnSeg(px, py, ax, ay, bx, by) {
@@ -1330,8 +1741,8 @@
           if (vn < 0) {
             const tvx = ball.vx - vn * nx;
             const tvy = ball.vy - vn * ny;
-            ball.vx = tvx * FRICTION - vn * nx * RESTITUTION;
-            ball.vy = tvy * FRICTION - vn * ny * RESTITUTION;
+            ball.vx = tvx * s.f - vn * nx * s.r;
+            ball.vy = tvy * s.f - vn * ny * s.r;
           }
           any = true;
         } else if (dist === 0) {
@@ -1340,11 +1751,15 @@
       }
       if (!any) break;
     }
+    // Re-clamp after collisions: under stacked contacts the response can
+    // amplify magnitude across iterations; an explicit cap keeps MAX_V the
+    // hard ceiling regardless of geometry density.
+    clampV();
   }
   function checkOffscreen() {
     return ball.x + ball.r < -OFFSCREEN_MARGIN ||
-           ball.x - ball.r >  W + OFFSCREEN_MARGIN ||
-           ball.y - ball.r >  H + OFFSCREEN_MARGIN ||
+           ball.x - ball.r >  VW + OFFSCREEN_MARGIN ||
+           ball.y - ball.r >  VH + OFFSCREEN_MARGIN ||
            ball.y + ball.r < -OFFSCREEN_MARGIN;
   }
   function checkGoal() {
@@ -1353,18 +1768,18 @@
     const inY = ball.y + ball.r > goal.y && ball.y < goal.y + goal.h + ball.r;
     if (inX && inY) {
       won = true;
-      timerStop();
       const total = timerMs();
-      recording.push([total, ball.x / W, ball.y / H]);
+      recording.push([total, ball.x, ball.y]);
+      const id = LEVELS[levelIdx].id;
       // Count this completed run for the "favorite track" stat.
-      plays[levelIdx] = (plays[levelIdx] || 0) + 1;
+      plays[id] = (plays[id] || 0) + 1;
       savePlays();
-      const prev = bestTimes[levelIdx];
+      const prev = bestTimes[id];
       const med = medalFor(levelIdx, total);
       const isNewBest = (prev == null || total < prev);
       if (isNewBest) {
-        bestTimes[levelIdx] = total;
-        ghosts[levelIdx] = recording.slice();
+        bestTimes[id] = total;
+        ghosts[id] = recording.slice();
         saveBest(); saveGhosts();
         refreshBestUI();
         refreshTargetsRibbon();
@@ -1376,16 +1791,15 @@
     }
   }
   function maybeSampleGhost() {
-    const t = timerMs();
-    if (t - lastSampleAt >= SAMPLE_INTERVAL) {
-      recording.push([t, ball.x / W, ball.y / H]);
-      lastSampleAt = t;
+    if (simTimeMs - lastSampleAt >= SAMPLE_INTERVAL) {
+      recording.push([simTimeMs, ball.x, ball.y]);
+      lastSampleAt = simTimeMs;
     }
   }
   function ghostPosAt(t) {
-    const g = ghosts[levelIdx];
+    const g = ghostOf(levelIdx);
     if (!g || g.length === 0) return null;
-    if (t < g[0][0]) return { x: g[0][1] * W, y: g[0][2] * H };
+    if (t < g[0][0]) return { x: g[0][1], y: g[0][2] };
     if (t >= g[g.length - 1][0]) return null;
     let lo = 0, hi = g.length - 1;
     while (lo + 1 < hi) {
@@ -1394,7 +1808,7 @@
     }
     const a = g[lo], b = g[hi];
     const u = (t - a[0]) / (b[0] - a[0]);
-    return { x: (a[1] + (b[1] - a[1]) * u) * W, y: (a[2] + (b[2] - a[2]) * u) * H };
+    return { x: a[1] + (b[1] - a[1]) * u, y: a[2] + (b[2] - a[2]) * u };
   }
 
   // ============================================================
@@ -1443,11 +1857,73 @@
   }
 
   // ============================================================
+  // Global rankings (placeholder)
+  // ============================================================
+  // Stub for the future leaderboard backend. Returns null today, so the
+  // trophy-modal rank slot shows "—". When a backend exists (Cloudflare
+  // Workers + KV is the planned shape), make this return the player's
+  // rank for the given circuit/time. Keep the shape stable.
+  function getGlobalRank(/* levelIdx, ms */) {
+    return null;
+  }
+  function formatGlobalRank(rank) {
+    return rank == null ? '—' : '#' + rank;
+  }
+
+  // ============================================================
   // Trophy modal
   // ============================================================
   const trophyModal = document.getElementById('trophy-modal');
   const trophyPanel = trophyModal.querySelector('.trophy-panel');
   let lastWinInfo = null; // { tier, ms, levelIdx, isNewBest }
+
+  function renderTrophyLadder(levelIdx, ms, tier) {
+    // Show all four official tier times with the player's earned tier
+    // highlighted, so the result is anchored against the full target
+    // ladder rather than just a single label.
+    const m = levelMedals(levelIdx);
+    const rows = [
+      { key:'platinum', label:'Platinum', glyph:'★', target:m.platinum },
+      { key:'gold',     label:'Gold',     glyph:'●', target:m.gold     },
+      { key:'silver',   label:'Silver',   glyph:'●', target:m.silver   },
+      { key:'bronze',   label:'Bronze',   glyph:'●', target:m.bronze   },
+    ];
+    return rows.map(r => {
+      const earned = ms != null && ms <= r.target;
+      const mine   = tier === r.key;
+      const cls = `ladder-row tier-${r.key}${earned ? ' earned' : ''}${mine ? ' mine' : ''}`;
+      return `<div class="${cls}">`
+           +   `<span class="ladder-glyph">${r.glyph}</span>`
+           +   `<span class="ladder-label">${r.label}</span>`
+           +   `<span class="ladder-time">${fmtTime(r.target)}</span>`
+           + `</div>`;
+    }).join('');
+  }
+
+  // DOM-particle confetti burst behind the trophy panel. Each bit gets a
+  // randomized x position, lateral drift, color (tier-tinted), and delay
+  // so the burst feels organic rather than synchronized.
+  const confettiEl = document.getElementById('trophy-confetti');
+  function spawnConfetti(tier) {
+    confettiEl.innerHTML = '';
+    const tierColor =
+      tier === 'platinum' ? '#b8e6ff' :
+      tier === 'gold'     ? '#ffd166' :
+      tier === 'silver'   ? '#c8d0db' :
+      tier === 'bronze'   ? '#cd853f' : '#7fb3ff';
+    const palette = ['#ffffff', tierColor, '#7fb3ff', '#ef476f', '#ffd166'];
+    const N = 26;
+    for (let i = 0; i < N; i++) {
+      const b = document.createElement('div');
+      b.className = 'confetti-bit';
+      b.style.left = (4 + Math.random() * 92) + '%';
+      b.style.background = palette[(Math.random() * palette.length) | 0];
+      b.style.setProperty('--dx', ((Math.random() - 0.5) * 240) + 'px');
+      b.style.animationDelay = (Math.random() * 0.35) + 's';
+      b.style.transform = `rotate(${(Math.random() * 360) | 0}deg)`;
+      confettiEl.appendChild(b);
+    }
+  }
 
   function showTrophy(info) {
     lastWinInfo = info;
@@ -1466,6 +1942,11 @@
     else if (info.isNewBest) sub = 'New record on this circuit';
     else if (info.previous != null) sub = `Best ${fmtTime(info.previous)}`;
     document.getElementById('trophy-sub').textContent = sub;
+    document.getElementById('trophy-ladder').innerHTML =
+      renderTrophyLadder(info.levelIdx, info.ms, info.tier);
+    document.getElementById('trophy-rank-value').textContent =
+      formatGlobalRank(getGlobalRank(info.levelIdx, info.ms));
+    spawnConfetti(info.tier);
     trophyModal.classList.remove('hidden');
     // restart entrance animation by re-flowing
     const svg = trophyModal.querySelector('.trophy-svg');
@@ -1478,16 +1959,23 @@
   document.getElementById('trophy-repeat').addEventListener('click', () => { hideTrophy(); repeatAttempt(); });
   document.getElementById('trophy-next').addEventListener('click', () => {
     hideTrophy();
-    levelIdx = (levelIdx + 1) % LEVELS.length;
-    progress.currentLevel = levelIdx; saveProgress();
-    rebuildLevel();
+    nextLevel();
   });
   document.getElementById('trophy-share').addEventListener('click', async () => {
     if (!lastWinInfo) return;
     const { ms, levelIdx: lv, tier } = lastWinInfo;
-    const text = tier === 'platinum'
-      ? `🏆 I just BEAT THE WORLD RECORD on Time Ball — Circuit ${lv + 1} with ${fmtTime(ms)}s! Try to top that. ⚡`
-      : `I just hit ${fmtTime(ms)}s on Time Ball — Circuit ${lv + 1} (${(tier || 'FINISHED').toUpperCase()}). Beat that if you can. ⚡`;
+    const name = humanizeLevelName(LEVELS[lv].id);
+    const tierEmoji =
+      tier === 'platinum' ? '🏆' :
+      tier === 'gold'     ? '🥇' :
+      tier === 'silver'   ? '🥈' :
+      tier === 'bronze'   ? '🥉' : '⚡';
+    const headline = tier === 'platinum'
+      ? `🏆 World record on Time Ball — ${name}: ${fmtTime(ms)}s`
+      : `${tierEmoji} Time Ball · Circuit ${lv + 1} ${name} — ${fmtTime(ms)}s` +
+        (tier ? ` (${tier.toUpperCase()})` : '');
+    const tail = GAME_URL ? `\nBeat it: ${GAME_URL}` : `\nThink you can beat it?`;
+    const text = headline + tail;
     const blob = recordedBlob || await stopVideoCapture();
     const ext = (recordedMime || '').includes('mp4') ? 'mp4' : 'webm';
     const file = blob ? new File([blob], `timeball-c${lv+1}-${fmtTime(ms)}.${ext}`, { type: blob.type }) : null;
@@ -1523,18 +2011,50 @@
   }
 
   // ---- Render ----
+  // All game-content drawing happens in virtual coords. A single transform
+  // applies (DPR * viewScale) and centers the virtual world inside the
+  // physical canvas; letterbox bands are filled with the outer bg color.
   function draw() {
-    ctx.clearRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    // 1) Outer bg / letterbox bands — identity transform, raw canvas px.
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#0a0d12';
+    ctx.fillRect(0, 0, screenW, screenH);
+
+    // 2) Virtual viewport transform + clip.
+    ctx.setTransform(DPR * viewScale, 0, 0, DPR * viewScale, DPR * viewOffX, DPR * viewOffY);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, VW, VH);
+    ctx.clip();
+
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
     g.addColorStop(0, '#141a24'); g.addColorStop(1, '#0a0d12');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
 
     ctx.fillStyle = '#3a4254';
     ctx.strokeStyle = '#525c73';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 2;
     for (const w of walls) {
       roundRect(w.x, w.y, w.w, w.h, 4);
       ctx.fill(); ctx.stroke();
+    }
+
+    // Preset rails (level-defined line obstacles). Warm copper hue, kept
+    // distinct from player strokes (#9bd4ff cyan) and walls (slate).
+    if (rails.length) {
+      ctx.save();
+      ctx.strokeStyle = '#c4895a';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(196, 137, 90, 0.35)';
+      ctx.shadowBlur = 6;
+      for (const R of rails) {
+        ctx.beginPath();
+        ctx.moveTo(R.x1, R.y1);
+        ctx.lineTo(R.x2, R.y2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // Goal
@@ -1544,19 +2064,19 @@
     ctx.fillStyle = '#ffd166';
     roundRect(goal.x, goal.y, goal.w, goal.h, 6);
     ctx.fill(); ctx.restore();
-    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(goal.x + goal.w/2, goal.y);
-    ctx.lineTo(goal.x + goal.w/2, goal.y - 28);
+    ctx.lineTo(goal.x + goal.w/2, goal.y - 32);
     ctx.stroke();
     ctx.fillStyle = '#ef476f';
     ctx.beginPath();
-    ctx.moveTo(goal.x + goal.w/2, goal.y - 28);
-    ctx.lineTo(goal.x + goal.w/2 + 16, goal.y - 22);
-    ctx.lineTo(goal.x + goal.w/2, goal.y - 16);
+    ctx.moveTo(goal.x + goal.w/2, goal.y - 32);
+    ctx.lineTo(goal.x + goal.w/2 + 18, goal.y - 25);
+    ctx.lineTo(goal.x + goal.w/2, goal.y - 18);
     ctx.closePath(); ctx.fill();
 
-    ctx.strokeStyle = '#9bd4ff'; ctx.lineWidth = 4;
+    ctx.strokeStyle = '#9bd4ff'; ctx.lineWidth = 7;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of strokes) drawStroke(s);
     if (currentStroke) {
@@ -1570,8 +2090,8 @@
       if (gp) {
         ctx.save();
         ctx.globalAlpha = 0.55;
-        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 5]);
         ctx.beginPath();
         ctx.arc(gp.x, gp.y, ball.r, 0, Math.PI * 2);
         ctx.stroke();
@@ -1593,10 +2113,7 @@
       ctx.restore();
     }
 
-    // Eraser cursor
-    if (tool === 'erase' && erasing) {
-      // (visual feedback could be added here)
-    }
+    ctx.restore();   // end virtual-viewport clip
 
     timeEl.textContent = fmtTime(timerMs());
     timeEl.style.color = won ? '#ffd166' : (lost ? '#ef476f' : (paused ? 'rgba(230,232,238,0.6)' : '#e6e8ee'));
@@ -1621,38 +2138,46 @@
   }
 
   // ---- Loop ----
+  // Deterministic fixed-timestep accumulator: each frame appends real elapsed
+  // time, then we run as many STEP-sized physics steps as fit. Leftover
+  // accumulator carries to next frame, so behavior is identical across FPS.
+  // (dt is clamped to avoid a spiral-of-death after tab-switch / GC pauses.)
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min((now - last) / 1000, 1 / 30);
+    const dt = Math.min((now - last) / 1000, 0.25);
     last = now;
-    const STEP = 1 / 240;
-    let acc = (paused || won || lost) ? 0 : dt;
-    while (acc > 0) {
-      const h = Math.min(STEP, acc);
-      ball.vy += GRAV * h;
-      ball.vx *= AIR; ball.vy *= AIR;
-      clampV();
-      ball.x += ball.vx * h; ball.y += ball.vy * h;
-      resolveCollisions();
-      maybeSampleGhost();
-      acc -= h;
-    }
-    if (!won && !lost && !paused && checkOffscreen()) {
-      lost = true; timerStop();
-      lostUntil = performance.now() + 700;
-      showToast('Lost!', 'Off the map');
+    if (!paused && !won && !lost) {
+      physicsAcc += dt;
+      while (physicsAcc >= STEP) {
+        ball.vy += GRAV * STEP;
+        ball.vx *= AIR; ball.vy *= AIR;
+        clampV();
+        ball.x += ball.vx * STEP; ball.y += ball.vy * STEP;
+        resolveCollisions();
+        simTimeMs += STEP * 1000;
+        maybeSampleGhost();
+        physicsAcc -= STEP;
+        if (checkOffscreen()) {
+          lost = true;
+          lostUntil = performance.now() + 700;
+          showToast('Lost!', 'Off the map');
+          physicsAcc = 0;
+          break;
+        }
+        checkGoal();
+        if (won) { physicsAcc = 0; break; }
+      }
     }
     if (lost && performance.now() >= lostUntil && settings.autoReset) {
       repeatAttempt();
     }
-    checkGoal();
     draw();
     requestAnimationFrame(frame);
   }
 
   // Boot
   resize();
-  rebuildLevel();
+  gotoLevel(LEVEL_INDEX_BY_ID[progress.currentLevel] ?? 0);
   updateToolButton();
   requestAnimationFrame((t) => { last = t; frame(t); });
 })();
