@@ -329,6 +329,72 @@
   .trophy-panel.tier-silver   { color: var(--silver); }
   .trophy-panel.tier-bronze   { color: var(--bronze); }
 
+  /* Level intro card (auto-fades; non-blocking — player can already draw) */
+  .level-intro {
+    position: fixed; left: 50%; top: 28%;
+    transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; z-index: 60;
+    animation: introIn 320ms cubic-bezier(.22,1.4,.36,1) both,
+               introOut 360ms ease 1300ms forwards;
+  }
+  .level-intro.hidden { display: none; }
+  @keyframes introIn  { from { opacity: 0; transform: translate(-50%, calc(-50% - 20px)); } to { opacity: 1; transform: translate(-50%, -50%); } }
+  @keyframes introOut { to   { opacity: 0; transform: translate(-50%, calc(-50% - 12px)); } }
+  .intro-eyebrow {
+    font-size: 11px; letter-spacing: 0.32em; opacity: 0.6; text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  .intro-title {
+    margin-top: 8px;
+    font-size: 38px; font-weight: 800; letter-spacing: 0.05em;
+    background: linear-gradient(180deg, #ffffff, var(--accent));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 28px rgba(127, 179, 255, 0.25);
+  }
+
+  /* 3-2-1-GO countdown overlay (centered; one keyframe per tick) */
+  .countdown {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 140px; font-weight: 900; line-height: 1;
+    color: var(--text); pointer-events: none; z-index: 80;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 36px rgba(127, 179, 255, 0.5);
+    animation: countdownTick 580ms cubic-bezier(.18,1.2,.36,1) both;
+  }
+  .countdown.hidden { display: none; }
+  .countdown.go {
+    color: var(--gold); font-size: 110px; letter-spacing: 0.04em;
+    text-shadow: 0 0 36px rgba(255, 209, 102, 0.55);
+    animation: countdownGo 380ms cubic-bezier(.22,1.4,.36,1) both;
+  }
+  @keyframes countdownTick {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(1.45); }
+    25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  }
+  @keyframes countdownGo {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+  }
+
+  /* Win-screen confetti (DOM particles behind the trophy panel) */
+  .trophy-confetti {
+    position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+  }
+  .confetti-bit {
+    position: absolute; top: -20px;
+    width: 9px; height: 13px; border-radius: 2px;
+    opacity: 0;
+    animation: confettiFall 2.4s cubic-bezier(.3,.1,.6,1) forwards;
+  }
+  @keyframes confettiFall {
+    0%   { transform: translate(0, -40px) rotate(0deg);   opacity: 0; }
+    8%   { opacity: 1; }
+    100% { transform: translate(var(--dx, 0), 70vh) rotate(720deg); opacity: 0; }
+  }
+
   /* Toast */
   #toast {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -486,6 +552,13 @@
     <button id="btn-play" class="primary">▶ Play</button>
     <button id="btn-next">›</button>
   </div>
+  <!-- Level intro card: auto-fades when entering a circuit -->
+  <div id="level-intro" class="level-intro hidden">
+    <div class="intro-eyebrow">CIRCUIT <span id="intro-num">1</span> / <span id="intro-total">21</span></div>
+    <div class="intro-title" id="intro-title">Gentle Intro</div>
+  </div>
+  <!-- 3-2-1-GO countdown shown after Play, before physics start -->
+  <div id="countdown" class="countdown hidden"></div>
 </div>
 
 <div id="toast"></div>
@@ -493,6 +566,7 @@
 <!-- ========== Trophy modal (win animation) ========== -->
 <div id="trophy-modal" class="hidden">
   <div class="trophy-backdrop"></div>
+  <div class="trophy-confetti" id="trophy-confetti"></div>
   <div class="trophy-panel">
     <div class="trophy-stage">
       <div class="trophy-glow"></div>
@@ -827,6 +901,15 @@
   function levelMedals(idx) {
     return LEVELS[idx].medals;
   }
+  // 'ramp-funnel' -> 'Ramp Funnel'. Drives the level intro card and share
+  // text so circuits read by name, not by slug or array position.
+  function humanizeLevelName(id) {
+    return id.split('-').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+  }
+  // Where the hosted game lives. Empty string is fine — share-text logic
+  // omits the trailing URL line when this is blank. Update after Pages is
+  // enabled.
+  const GAME_URL = 'https://amsrgj.github.io/Time-Ball/';
   // Time-based medals. The platinum threshold per level represents the current
   // world record — beating it earns platinum. Gold / silver / bronze layer
   // below. (No real backend yet, so the world record is the developer-set
@@ -870,7 +953,7 @@
       el.classList.toggle('active', active);
       el.classList.toggle('fade-in', active);
     });
-    if (name !== 'game') hideTrophy();
+    if (name !== 'game') { hideTrophy(); cancelCountdown(); cancelLevelIntro(); }
     if (name === 'menu')     startMenuDemo(); else stopMenuDemo();
     if (name === 'circuits') renderCircuits();
     if (name === 'records')  renderRecords();
@@ -916,6 +999,7 @@
     menuDemo = {
       w, h,
       ball: { x: w * 0.92, y: -10, vx: 0, vy: 0, r: 7 },
+      trail: [],   // rolling list of recent ball positions for the fading motion blur
       line: DEMO_LINE_NORM.map(p => ({ x: p.x * w, y: p.y * h })),
       walls: [
         { x: w * 0.20, y: h * 0.72, w: w * 0.32, h: 5 },
@@ -925,6 +1009,7 @@
       holdUntil: 0,
     };
   }
+  const MENU_TRAIL_LEN = 10;
   function* demoSegments(s) {
     for (let i = 1; i < s.line.length; i++) {
       yield { x1: s.line[i-1].x, y1: s.line[i-1].y, x2: s.line[i].x, y2: s.line[i].y };
@@ -977,6 +1062,10 @@
       }
       acc -= h;
     }
+    // Trail: keep a rolling tail of recent ball positions for the motion-
+    // blur effect in drawMenuDemo. Drop the oldest when over capacity.
+    s.trail.push({ x: ball.x, y: ball.y });
+    if (s.trail.length > MENU_TRAIL_LEN) s.trail.shift();
     // Goal check
     const inX = ball.x > s.goal.x && ball.x < s.goal.x + s.goal.w;
     const inY = ball.y + ball.r > s.goal.y;
@@ -1030,6 +1119,17 @@
     menuCtx.lineTo(s.goal.x + s.goal.w/2,      s.goal.y - 10);
     menuCtx.closePath();
     menuCtx.fill();
+    // Trail (fading motion blur — drawn first so the ball overlaps it).
+    menuCtx.fillStyle = '#7fb3ff';
+    for (let i = 0; i < s.trail.length; i++) {
+      const p = s.trail[i];
+      const f = (i + 1) / s.trail.length;        // 0..1 along the trail
+      menuCtx.globalAlpha = f * 0.35;
+      menuCtx.beginPath();
+      menuCtx.arc(p.x, p.y, s.ball.r * (0.4 + 0.6 * f), 0, Math.PI * 2);
+      menuCtx.fill();
+    }
+    menuCtx.globalAlpha = 1;
     // Ball
     if (s.ball.y > -s.ball.r && s.ball.y < s.h + s.ball.r) {
       menuCtx.shadowColor = 'rgba(160, 220, 255, 0.5)';
@@ -1330,11 +1430,13 @@
     timerReset();
     recording = [];
     lastSampleAt = -Infinity;
+    cancelCountdown();
     updatePlayButton();
     levelEl.textContent = String(levelIdx + 1);
     refreshInkUI();
     refreshBestUI();
     refreshTargetsRibbon();
+    showLevelIntro();
   }
 
   function repeatAttempt() {
@@ -1347,7 +1449,80 @@
     timerReset();
     recording = [];
     lastSampleAt = -Infinity;
+    cancelCountdown();
     updatePlayButton();
+  }
+
+  // ---- Level intro card (auto-fades) ----
+  // Shown once when entering a circuit. Non-blocking — the player can
+  // already see walls/strokes/HUD underneath and start drawing.
+  const introEl    = document.getElementById('level-intro');
+  const introNum   = document.getElementById('intro-num');
+  const introTotal = document.getElementById('intro-total');
+  const introTitle = document.getElementById('intro-title');
+  let introTimer = null;
+  function showLevelIntro() {
+    // Skip when the game screen isn't visible (e.g., during boot's
+    // initial rebuildLevel). The intro is purely a visual flourish, so
+    // there's nothing to do if no one's looking.
+    if (!document.getElementById('screen-game').classList.contains('active')) return;
+    if (introTimer) clearTimeout(introTimer);
+    introNum.textContent   = String(levelIdx + 1);
+    introTotal.textContent = String(LEVELS.length);
+    introTitle.textContent = humanizeLevelName(LEVELS[levelIdx].id);
+    introEl.classList.remove('hidden');
+    // Restart CSS animation by re-flowing the node.
+    introEl.style.animation = 'none'; void introEl.offsetWidth; introEl.style.animation = '';
+    // The CSS animation handles the fade-out; we hide the node after to
+    // free pointer-events (already 'none', but also keeps DOM tidy).
+    introTimer = setTimeout(() => { introEl.classList.add('hidden'); introTimer = null; }, 1800);
+  }
+  function cancelLevelIntro() {
+    if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+    introEl.classList.add('hidden');
+  }
+
+  // ---- 3-2-1-GO countdown (only when starting from a fresh attempt) ----
+  // Runs after Play press when timerMs() === 0; suppressed when resuming
+  // from a mid-run pause so retry loops stay tight. Cancels on level
+  // change, reset, repeat, or leaving the game screen.
+  const countdownEl = document.getElementById('countdown');
+  let countdownActive = false;
+  let countdownTimer = null;
+  const COUNTDOWN_STEPS = [
+    { text: '3',  cls: '',   dur: 580 },
+    { text: '2',  cls: '',   dur: 580 },
+    { text: '1',  cls: '',   dur: 580 },
+    { text: 'GO', cls: 'go', dur: 360 },
+  ];
+  function startCountdown(onComplete) {
+    cancelCountdown();
+    countdownActive = true;
+    let i = 0;
+    const tick = () => {
+      if (!countdownActive) return;
+      if (i >= COUNTDOWN_STEPS.length) {
+        countdownEl.classList.add('hidden');
+        countdownActive = false;
+        countdownTimer = null;
+        onComplete();
+        return;
+      }
+      const s = COUNTDOWN_STEPS[i++];
+      countdownEl.textContent = s.text;
+      countdownEl.className = 'countdown ' + s.cls;
+      // Restart the keyframe so each tick plays its own scale-in.
+      countdownEl.style.animation = 'none';
+      void countdownEl.offsetWidth;
+      countdownEl.style.animation = '';
+      countdownTimer = setTimeout(tick, s.dur);
+    };
+    tick();
+  }
+  function cancelCountdown() {
+    if (countdownTimer) { clearTimeout(countdownTimer); countdownTimer = null; }
+    countdownActive = false;
+    countdownEl.classList.add('hidden');
   }
 
   // ---- Level navigation (single entry point for all flows) ----
@@ -1390,6 +1565,10 @@
     refreshInkUI();
     updatePlayButton();
     updateToolButton();
+    // Re-show the intro card only when the player is entering at the
+    // start of an attempt — mid-attempt menu trips back into the game
+    // shouldn't flash the title over an in-progress run.
+    if (!won && !lost && timerMs() < 50) showLevelIntro();
   }
 
   // ---- Input (pointer events arrive in screen px; convert to virtual) ----
@@ -1478,10 +1657,25 @@
   });
   btnPlay.addEventListener('click', () => {
     if (won || lost) { repeatAttempt(); return; }
-    paused = !paused;
-    // Begin video capture only when (re)starting from a fresh attempt.
-    if (!paused && timerMs() < 50) startVideoCapture();
-    updatePlayButton();
+    if (countdownActive) return;     // ignore re-presses mid-countdown
+    if (paused) {
+      // Fresh attempt: pre-roll a 3-2-1-GO countdown for anticipation.
+      // Mid-run resume from pause skips it so retry loops stay tight.
+      cancelLevelIntro();
+      if (timerMs() < 50) {
+        startCountdown(() => {
+          paused = false;
+          startVideoCapture();
+          updatePlayButton();
+        });
+      } else {
+        paused = false;
+        updatePlayButton();
+      }
+    } else {
+      paused = true;
+      updatePlayButton();
+    }
   });
   document.getElementById('btn-repeat').addEventListener('click', () => {
     repeatAttempt();
@@ -1706,6 +1900,31 @@
     }).join('');
   }
 
+  // DOM-particle confetti burst behind the trophy panel. Each bit gets a
+  // randomized x position, lateral drift, color (tier-tinted), and delay
+  // so the burst feels organic rather than synchronized.
+  const confettiEl = document.getElementById('trophy-confetti');
+  function spawnConfetti(tier) {
+    confettiEl.innerHTML = '';
+    const tierColor =
+      tier === 'platinum' ? '#b8e6ff' :
+      tier === 'gold'     ? '#ffd166' :
+      tier === 'silver'   ? '#c8d0db' :
+      tier === 'bronze'   ? '#cd853f' : '#7fb3ff';
+    const palette = ['#ffffff', tierColor, '#7fb3ff', '#ef476f', '#ffd166'];
+    const N = 26;
+    for (let i = 0; i < N; i++) {
+      const b = document.createElement('div');
+      b.className = 'confetti-bit';
+      b.style.left = (4 + Math.random() * 92) + '%';
+      b.style.background = palette[(Math.random() * palette.length) | 0];
+      b.style.setProperty('--dx', ((Math.random() - 0.5) * 240) + 'px');
+      b.style.animationDelay = (Math.random() * 0.35) + 's';
+      b.style.transform = `rotate(${(Math.random() * 360) | 0}deg)`;
+      confettiEl.appendChild(b);
+    }
+  }
+
   function showTrophy(info) {
     lastWinInfo = info;
     const tier = info.tier || 'finished';
@@ -1727,6 +1946,7 @@
       renderTrophyLadder(info.levelIdx, info.ms, info.tier);
     document.getElementById('trophy-rank-value').textContent =
       formatGlobalRank(getGlobalRank(info.levelIdx, info.ms));
+    spawnConfetti(info.tier);
     trophyModal.classList.remove('hidden');
     // restart entrance animation by re-flowing
     const svg = trophyModal.querySelector('.trophy-svg');
@@ -1744,9 +1964,18 @@
   document.getElementById('trophy-share').addEventListener('click', async () => {
     if (!lastWinInfo) return;
     const { ms, levelIdx: lv, tier } = lastWinInfo;
-    const text = tier === 'platinum'
-      ? `🏆 I just BEAT THE WORLD RECORD on Time Ball — Circuit ${lv + 1} with ${fmtTime(ms)}s! Try to top that. ⚡`
-      : `I just hit ${fmtTime(ms)}s on Time Ball — Circuit ${lv + 1} (${(tier || 'FINISHED').toUpperCase()}). Beat that if you can. ⚡`;
+    const name = humanizeLevelName(LEVELS[lv].id);
+    const tierEmoji =
+      tier === 'platinum' ? '🏆' :
+      tier === 'gold'     ? '🥇' :
+      tier === 'silver'   ? '🥈' :
+      tier === 'bronze'   ? '🥉' : '⚡';
+    const headline = tier === 'platinum'
+      ? `🏆 World record on Time Ball — ${name}: ${fmtTime(ms)}s`
+      : `${tierEmoji} Time Ball · Circuit ${lv + 1} ${name} — ${fmtTime(ms)}s` +
+        (tier ? ` (${tier.toUpperCase()})` : '');
+    const tail = GAME_URL ? `\nBeat it: ${GAME_URL}` : `\nThink you can beat it?`;
+    const text = headline + tail;
     const blob = recordedBlob || await stopVideoCapture();
     const ext = (recordedMime || '').includes('mp4') ? 'mp4' : 'webm';
     const file = blob ? new File([blob], `timeball-c${lv+1}-${fmtTime(ms)}.${ext}`, { type: blob.type }) : null;
