@@ -278,7 +278,50 @@
   .trophy-tier { font-size: 26px; font-weight: 800; letter-spacing: 0.16em; color: currentColor; text-shadow: 0 0 20px currentColor; animation: rise 500ms ease 280ms both; }
   .trophy-time { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); animation: rise 500ms ease 380ms both; }
   .trophy-sub { font-size: 13px; opacity: 0.7; min-height: 18px; animation: rise 500ms ease 480ms both; }
-  .trophy-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; justify-content: center; animation: rise 500ms ease 580ms both; }
+
+  /* Official tier-times ladder (one row per tier; player's earned row
+     stays fully lit, others are dimmed). */
+  .trophy-ladder {
+    display: flex; flex-direction: column; gap: 4px;
+    margin: 12px 0 4px; align-self: stretch;
+    font-variant-numeric: tabular-nums;
+    animation: rise 500ms ease 520ms both;
+  }
+  .ladder-row {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center;
+    padding: 7px 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    font-size: 13px;
+    opacity: 0.5;
+    transition: opacity 200ms ease;
+  }
+  .ladder-row.earned { opacity: 0.9; }
+  .ladder-row.mine {
+    opacity: 1;
+    background: rgba(255,255,255,0.08); border-color: currentColor;
+    box-shadow: 0 0 14px -2px currentColor;
+  }
+  .ladder-row.tier-platinum { color: var(--platinum); }
+  .ladder-row.tier-gold     { color: var(--gold); }
+  .ladder-row.tier-silver   { color: var(--silver); }
+  .ladder-row.tier-bronze   { color: var(--bronze); }
+  .ladder-glyph { text-align: center; font-size: 14px; }
+  .ladder-label { color: var(--text); opacity: 0.75; letter-spacing: 0.04em; }
+  .ladder-time { font-weight: 600; }
+
+  /* Placeholder slot for future global leaderboard rank. getGlobalRank()
+     returns null today; this row stays "—" until a backend is wired in. */
+  .trophy-rank {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    margin-top: 4px; font-size: 12px;
+    align-self: stretch; justify-content: center;
+    animation: rise 500ms ease 560ms both;
+  }
+  .trophy-rank-label { opacity: 0.55; letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; }
+  .trophy-rank-value { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+  .trophy-rank-note  { opacity: 0.4; font-size: 10px; font-style: italic; }
+
+  .trophy-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: center; animation: rise 500ms ease 600ms both; }
   .trophy-actions button { padding: 10px 16px; font-size: 14px; }
   .trophy-close { position: absolute; top: 8px; right: 10px; background: transparent; border: none; color: rgba(255,255,255,0.4); font-size: 16px; min-width: 32px; padding: 6px; }
   .trophy-panel.tier-platinum { color: var(--platinum); }
@@ -431,7 +474,7 @@
     </div>
   </div>
   <div id="hud-targets">
-    <div class="target plat hidden"  data-tier="platinum">★ <span></span></div>
+    <div class="target plat"  data-tier="platinum">★ <span></span></div>
     <div class="target gold"   data-tier="gold">●&nbsp;<span></span></div>
     <div class="target silver" data-tier="silver">●&nbsp;<span></span></div>
     <div class="target bronze" data-tier="bronze">●&nbsp;<span></span></div>
@@ -485,6 +528,12 @@
     <div class="trophy-tier" id="trophy-tier">GOLD</div>
     <div class="trophy-time" id="trophy-time">0.00s</div>
     <div class="trophy-sub" id="trophy-sub"></div>
+    <div class="trophy-ladder" id="trophy-ladder"></div>
+    <div class="trophy-rank">
+      <span class="trophy-rank-label">Global rank</span>
+      <span class="trophy-rank-value" id="trophy-rank-value">—</span>
+      <span class="trophy-rank-note">leaderboards coming soon</span>
+    </div>
     <div class="trophy-actions">
       <button id="trophy-share">Share</button>
       <button id="trophy-repeat">↻ Repeat</button>
@@ -1195,16 +1244,14 @@
   const tgtBronze = document.querySelector('.target.bronze');
 
   function refreshTargetsRibbon() {
+    // All four official tier times are visible before/during every run.
+    // The platinum row is the official world-record placeholder (no
+    // backend yet — see getGlobalRank).
     const m = levelMedals(levelIdx);
+    tgtPlat.querySelector('span').textContent   = fmtTime(m.platinum);
     tgtGold.querySelector('span').textContent   = fmtTime(m.gold);
     tgtSilver.querySelector('span').textContent = fmtTime(m.silver);
     tgtBronze.querySelector('span').textContent = fmtTime(m.bronze);
-    if (hasPlatinum(levelIdx)) {
-      tgtPlat.classList.remove('hidden');
-      tgtPlat.querySelector('span').textContent = fmtTime(m.platinum);
-    } else {
-      tgtPlat.classList.add('hidden');
-    }
   }
   function updateTargetsLit() {
     const t = won ? bestTimeOf(levelIdx) : timerMs();
@@ -1566,11 +1613,48 @@
   }
 
   // ============================================================
+  // Global rankings (placeholder)
+  // ============================================================
+  // Stub for the future leaderboard backend. Returns null today, so the
+  // trophy-modal rank slot shows "—". When a backend exists (Cloudflare
+  // Workers + KV is the planned shape), make this return the player's
+  // rank for the given circuit/time. Keep the shape stable.
+  function getGlobalRank(/* levelIdx, ms */) {
+    return null;
+  }
+  function formatGlobalRank(rank) {
+    return rank == null ? '—' : '#' + rank;
+  }
+
+  // ============================================================
   // Trophy modal
   // ============================================================
   const trophyModal = document.getElementById('trophy-modal');
   const trophyPanel = trophyModal.querySelector('.trophy-panel');
   let lastWinInfo = null; // { tier, ms, levelIdx, isNewBest }
+
+  function renderTrophyLadder(levelIdx, ms, tier) {
+    // Show all four official tier times with the player's earned tier
+    // highlighted, so the result is anchored against the full target
+    // ladder rather than just a single label.
+    const m = levelMedals(levelIdx);
+    const rows = [
+      { key:'platinum', label:'Platinum', glyph:'★', target:m.platinum },
+      { key:'gold',     label:'Gold',     glyph:'●', target:m.gold     },
+      { key:'silver',   label:'Silver',   glyph:'●', target:m.silver   },
+      { key:'bronze',   label:'Bronze',   glyph:'●', target:m.bronze   },
+    ];
+    return rows.map(r => {
+      const earned = ms != null && ms <= r.target;
+      const mine   = tier === r.key;
+      const cls = `ladder-row tier-${r.key}${earned ? ' earned' : ''}${mine ? ' mine' : ''}`;
+      return `<div class="${cls}">`
+           +   `<span class="ladder-glyph">${r.glyph}</span>`
+           +   `<span class="ladder-label">${r.label}</span>`
+           +   `<span class="ladder-time">${fmtTime(r.target)}</span>`
+           + `</div>`;
+    }).join('');
+  }
 
   function showTrophy(info) {
     lastWinInfo = info;
@@ -1589,6 +1673,10 @@
     else if (info.isNewBest) sub = 'New record on this circuit';
     else if (info.previous != null) sub = `Best ${fmtTime(info.previous)}`;
     document.getElementById('trophy-sub').textContent = sub;
+    document.getElementById('trophy-ladder').innerHTML =
+      renderTrophyLadder(info.levelIdx, info.ms, info.tier);
+    document.getElementById('trophy-rank-value').textContent =
+      formatGlobalRank(getGlobalRank(info.levelIdx, info.ms));
     trophyModal.classList.remove('hidden');
     // restart entrance animation by re-flowing
     const svg = trophyModal.querySelector('.trophy-svg');
